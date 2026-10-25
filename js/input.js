@@ -49,7 +49,9 @@ const Input = {
       this.keys[e.code] = true;
       if (e.repeat) return;
       if (e.code === 'Space') { e.preventDefault(); UI.act('dash'); }
-      if (e.code === 'KeyQ') UI.act('med');
+      if (e.code === 'KeyQ' || e.code === 'Digit1') UI.act('hp');
+      if (e.code === 'KeyR' || e.code === 'Digit2') UI.act('mp');
+      if (e.code === 'KeyF') UI.act('ability');
       if (e.code === 'KeyE' && G.atHome) UI.act(UI.open ? 'close' : 'home');
       if (e.code === 'KeyB' || e.code === 'KeyI') UI.act(UI.open ? 'close' : 'bag');
       if (e.code === 'KeyK') UI.act(UI.open ? 'close' : 'skills');

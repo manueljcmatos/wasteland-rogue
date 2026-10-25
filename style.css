@@ -21,7 +21,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .bar span { position: absolute; inset: 0; font-size: 11px; line-height: 15px; text-align: center; font-weight: 700; text-shadow: 0 1px 2px #000; }
 .bar.hp { height: 20px; } .bar.hp span { line-height: 19px; font-size: 12px; }
 #hpFill { background: linear-gradient(#ef5350, #b71c1c); }
-#xpFill { background: linear-gradient(#64b5f6, #1565c0); }
+#mpFill { background: linear-gradient(#42a5f5, #0d47a1); }
+#xpFill { background: linear-gradient(#b388ff, #5e35b1); }
+.bar.xp, .bar.rank { height: 13px; } .bar.xp span, .bar.rank span { font-size: 10px; line-height: 12px; }
 #rankFill { background: linear-gradient(#ffd54f, #ff8f00); }
 
 #side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -42,7 +44,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #topBtns i:empty, #actBtns i:empty { display: none; }
 
 #actBtns {
-  position: absolute; right: 14px; bottom: calc(env(safe-area-inset-bottom) + 150px);
+  position: absolute; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 110px);
   display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
 }
 #actBtns button { width: 58px; height: 58px; border-radius: 50%; font-size: 24px; }
@@ -105,3 +107,33 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 .chips span { background: #3a3220; color: #ffe082; border-radius: 8px; padding: 2px 8px; font-size: 12px; }
 textarea#saveCode { width: 100%; height: 64px; resize: none; background: #111418; color: #9ab; border: 1px solid #343a44; border-radius: 10px; padding: 6px; font: 11px/1.3 ui-monospace, monospace; user-select: text; -webkit-user-select: text; touch-action: auto; }
+
+.potrow { display: flex; gap: 8px; }
+#actBtns button.pot { width: 48px; height: 48px; font-size: 20px; }
+#btnAbility { width: 66px !important; height: 66px !important; font-size: 28px !important; overflow: hidden; border-color: #7e57c2 !important; background: rgba(49,27,90,.8) !important; }
+#btnAbility em { position: absolute; left: 0; right: 0; bottom: 4px; font-size: 10px; font-style: normal; font-weight: 800; color: #90caf9; }
+#abCd { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(0,0,0,.6); pointer-events: none; }
+#btnAbility.nomana { filter: grayscale(.8); }
+
+/* square inventory */
+.slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.slots.eq { grid-template-columns: repeat(5, 1fr); }
+.slot { position: relative; aspect-ratio: 1; background: #252a32; border: 2px solid #3a404b; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 30px; padding: 0; overflow: hidden; }
+.slot img { width: 86%; height: 86%; object-fit: contain; pointer-events: none; }
+.slot.empty { opacity: .55; }
+.slot .ph { font-size: 22px; opacity: .35; filter: grayscale(1); }
+.slot.sel { outline: 3px solid #fff; outline-offset: 1px; }
+.slot b { position: absolute; right: 4px; bottom: 2px; font-size: 12px; font-weight: 800; text-shadow: 0 1px 2px #000; }
+.slot small { position: absolute; left: 4px; top: 2px; font-size: 10px; color: #ccd; font-weight: 700; }
+.slotlbl { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; font-size: 10px; color: #99a; text-align: center; margin: 3px 0 4px; }
+.detail { margin-top: 10px; }
+.attr { display: flex; align-items: center; gap: 8px; background: #252a32; border-radius: 10px; padding: 7px 10px; margin-bottom: 5px; }
+.attr .nm { flex: 1; font-size: 13px; } .attr .nm div { font-size: 11px; color: #99a; }
+.attr .val { font-weight: 800; font-size: 16px; min-width: 34px; text-align: right; }
+.attr .val small { color: #66ff88; font-size: 11px; }
+.classes { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.cls { text-align: left; background: #252a32; border: 2px solid #3a404b; border-radius: 14px; padding: 10px 12px; display: flex; gap: 12px; align-items: center; }
+.cls.on { border-color: #ffca28; }
+.cls .ic { font-size: 34px; }
+.cls b { font-size: 16px; } .cls .d { font-size: 12px; color: #bbc; } .cls .ab { font-size: 12px; color: #b39ddb; margin-top: 3px; }
+.cls .at { font-size: 11px; color: #9fd; margin-top: 3px; }

@@ -19,6 +19,7 @@
   <div id="hudTop">
     <div id="bars">
       <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
+      <div class="bar mp"><div id="mpFill"></div><span id="mpText"></span></div>
       <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
       <div class="bar rank"><div id="rankFill"></div><span id="rankText"></span></div>
     </div>
@@ -38,7 +39,11 @@
   </div>
   <div id="actBtns">
     <button id="btnHome" data-act="home">🏠<span>Base</span></button>
-    <button id="btnMed" data-act="med">💊<i id="medCount"></i></button>
+    <button id="btnAbility" data-act="ability"><span id="abIcon">✨</span><em id="abCost"></em><div id="abCd"></div></button>
+    <div class="potrow">
+      <button id="btnHp" data-act="hp" class="pot">❤️<i id="hpCount"></i></button>
+      <button id="btnMp" data-act="mp" class="pot">🔷<i id="mpCount"></i></button>
+    </div>
     <button id="btnDash" data-act="dash">💨</button>
   </div>
   <div id="toasts"></div>

@@ -1,11 +1,12 @@
 'use strict';
 // Core simulation + rendering.
 const G = {
-  enemies: [], bullets: [], decals: [], recoil: 0, flashT: 0, ebullets: [], pickups: [], parts: [], texts: [], turrets: [],
+  enemies: [], bullets: [], decals: [], bolts: [], recoil: 0, flashT: 0, abCd: 0, potCd: 0,
+  buff: { rapid: 0, crit: 0, spd: 0 }, ebullets: [], pickups: [], parts: [], texts: [], turrets: [],
   active: new Map(), // outpost id -> true while its garrison is spawned
   t: 0, paused: false, zoom: 1, w: 0, h: 0, dpr: 1,
   lastZone: 0, atHome: true, spawnT: 0, outT: 0, farmT: 0, saveT: 0, mmT: 0, hudT: 0,
-  fireCd: 0, shake: 0, hurtFlash: 0, medCd: 0, pendingPerks: 0, shop: null, fullToastT: 0,
+  fireCd: 0, shake: 0, hurtFlash: 0, pendingPerks: 0, shop: null, fullToastT: 0,
 };
 
 // ---------- setup ----------
@@ -24,21 +25,37 @@ function newRun() {
   };
 }
 
+// class base + spent points + gear bonuses
+function totalAttrs() {
+  const S = G.save, base = (CLASS_BY_ID[S.cls] || CLASSES[0]).base, t = { spd: 0, armor: 0 };
+  for (const a of ATTRS) t[a.id] = base[a.id] + S.attrs[a.id];
+  for (const sl of GEAR_SLOTS) {
+    const g = S.gear[sl]; if (!g) continue;
+    t.armor += armorValue(g);
+    for (const k in g.stats) t[k] += g.stats[k];
+  }
+  return t;
+}
+
 function computeStats() {
-  const S = G.save, k = S.skills, b = S.buildings, m = S.run.mod;
+  const S = G.save, k = S.skills, b = S.buildings, m = S.run.mod, A = totalAttrs();
   return {
-    maxHp: Math.round((100 + (S.level - 1) * 5 + b.clinic * 15 + m.hp) * (1 + k.tough * .1) * (1 + k.power * .03)),
-    dmgMul: (1 + k.marks * .08 + m.dmg) * (1 + k.power * .03),
-    rateMul: 1 + k.trigger * .06 + m.rate,
-    spd: 200 * (1 + k.fleet * .05 + m.spd),
-    crit: .05 + k.crit * .04 + m.crit,
-    regen: k.regen * .5 + m.regen,
-    dashCd: 2.6 * (1 - k.dash * .1) * Math.max(.35, 1 - m.dashCd),
+    attrs: A, armor: A.armor, dr: A.armor / (A.armor + 100),
+    maxHp: Math.round((100 + (S.level - 1) * 5 + b.clinic * 15 + m.hp + A.vit * 8 + A.str * 2) * (1 + k.tough * .1) * (1 + k.power * .03)),
+    maxMp: Math.round(50 + A.int * 5),
+    mpRegen: 2 + A.int * .15,
+    abPower: (1 + A.int * .03) * (1 + .12 * (S.level - 1)),
+    dmgMul: (1 + k.marks * .08 + m.dmg + A.str * .015) * (1 + k.power * .03),
+    rateMul: 1 + k.trigger * .06 + m.rate + A.dex * .01,
+    spd: 200 * (1 + k.fleet * .05 + m.spd + A.agi * .006 + A.spd / 100),
+    crit: .05 + k.crit * .04 + m.crit + A.dex * .005,
+    regen: k.regen * .5 + m.regen + A.vit * .1,
+    dashCd: 2.6 * (1 - k.dash * .1) * Math.max(.35, 1 - m.dashCd) * Math.max(.5, 1 - A.agi * .008),
     magnet: 90 * (1 + m.magnet),
     leech: m.leech, goldMul: 1 + m.gold, scrapMul: 1 + k.scav * .15,
     thorns: m.thorns, multi: m.multi, pierce: m.pierce,
     luck: k.lucky * .25, haggle: k.haggle,
-    bagCap: 4 + b.armory, stashCap: 6 + b.armory * 4, medCap: 3 + b.clinic,
+    stashCap: 6 + b.armory * 4,
   };
 }
 
@@ -46,6 +63,7 @@ function recalc() {
   G.st = computeStats();
   G.ws = weaponStats(G.save.equipped);
   G.p.hp = Math.min(G.p.hp, G.st.maxHp);
+  G.p.mp = Math.min(G.p.mp, G.st.maxMp);
   buildTurrets();
 }
 
@@ -62,7 +80,7 @@ function buildTurrets() {
 function persist() {
   if (G.noSave) return; // a restore/erase is reloading the page
   const r = G.save.run;
-  r.x = G.p.x; r.y = G.p.y; r.hp = G.p.hp;
+  r.x = G.p.x; r.y = G.p.y; r.hp = G.p.hp; r.mp = G.p.mp;
   Save.write(G.save);
 }
 
@@ -75,7 +93,7 @@ function init() {
   World.reset(G.save.seed);
   if (!G.save.run) newRun();
   const r = G.save.run;
-  G.p = { x: r.x, y: r.y, hp: r.hp, r: 16, ang: -Math.PI / 2, dashT: 0, dashCd: 0, dvx: 0, dvy: 0, inv: 0 };
+  G.p = { x: r.x, y: r.y, hp: r.hp, mp: r.mp ?? 999, r: 16, ang: -Math.PI / 2, dashT: 0, dashCd: 0, dvx: 0, dvy: 0, inv: 0 };
   G.st = computeStats(); recalc();
   if (G.p.hp <= 0) G.p.hp = G.st.maxHp;
   G.atHome = Math.hypot(G.p.x, G.p.y) < HOME_R;
@@ -85,6 +103,7 @@ function init() {
   Input.init(G.canvas);
   UI.init();
   if (!G.save.seenIntro) UI.intro();
+  else if (!G.save.cls) UI.classPick(true);
   addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (!UI.open) UI.act('menu'); } });
   addEventListener('pagehide', persist);
   addEventListener('beforeunload', persist);
@@ -123,6 +142,21 @@ function addPickup(kind, x, y, v = 0, item = null) {
   G.pickups.push({ kind, x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, v, item, t: 0, life: kind === 'weapon' ? 150 : 60, lock: 0 });
 }
 
+// ---------- inventory ----------
+function invAdd(it) {
+  const inv = G.save.inv;
+  if (it.kind === 'potion') {
+    for (const s of inv) if (s && s.kind === 'potion' && s.p === it.p && s.n < STACK) {
+      const take = Math.min(STACK - s.n, it.n); s.n += take; it.n -= take;
+      if (!it.n) return true;
+    }
+  }
+  const i = inv.indexOf(null);
+  if (i < 0) return false;
+  inv[i] = it; return true;
+}
+const potionCount = p => G.save.inv.reduce((n, s) => n + (s && s.kind === 'potion' && s.p === p ? s.n : 0), 0);
+
 // ---------- player actions ----------
 function dash() {
   const p = G.p;
@@ -134,15 +168,71 @@ function dash() {
   burst(p.x, p.y, '#9be7ff', 10, 120);
 }
 
-function useMed() {
-  const S = G.save;
-  if (S.medkits <= 0 || G.medCd > 0 || G.paused) return;
-  if (G.p.hp >= G.st.maxHp) { toast('Already at full health'); return; }
-  S.medkits--; G.medCd = 1;
-  const h = G.st.maxHp * .5; G.p.hp = Math.min(G.st.maxHp, G.p.hp + h);
-  addText(G.p.x, G.p.y - 30, '+' + Math.round(h), '#66ff88', 18);
-  burst(G.p.x, G.p.y, '#66ff88', 12, 100);
+function usePotion(p) {
+  const S = G.save, st = G.st;
+  if (G.potCd > 0 || G.paused) return;
+  const i = S.inv.findIndex(s => s && s.kind === 'potion' && s.p === p);
+  if (i < 0) { toast(`No ${POTIONS[p].name}s`); return; }
+  if (p === 'hp' ? G.p.hp >= st.maxHp : G.p.mp >= st.maxMp) { toast(p === 'hp' ? 'Already at full health' : 'Mana already full'); return; }
+  if (--S.inv[i].n <= 0) S.inv[i] = null;
+  G.potCd = .8;
+  if (p === 'hp') { const h = st.maxHp * .5; G.p.hp = Math.min(st.maxHp, G.p.hp + h); addText(G.p.x, G.p.y - 30, '+' + Math.round(h), '#66ff88', 18); burst(G.p.x, G.p.y, '#ef5350', 12, 100); }
+  else { const m = st.maxMp * .6; G.p.mp = Math.min(st.maxMp, G.p.mp + m); addText(G.p.x, G.p.y - 30, '+' + Math.round(m), '#64b5f6', 18); burst(G.p.x, G.p.y, '#42a5f5', 12, 100); }
   Sfx.play('pick');
+}
+
+// ---------- class abilities ----------
+function useAbility() {
+  const S = G.save, p = G.p, st = G.st, ab = (CLASS_BY_ID[S.cls] || CLASSES[0]).ability;
+  if (G.paused || G.abCd > 0) return;
+  if (p.mp < ab.mana) { toast('Not enough mana 🔷', '#64b5f6'); return; }
+  const pow = st.abPower, tgt = nearestEnemy(p.x, p.y, 520);
+  const aim = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : p.ang;
+  p.mp -= ab.mana; G.abCd = ab.cd;
+  switch (ab.id) {
+    case 'grenade': {
+      const d = tgt ? Math.min(380, Math.hypot(tgt.x - p.x, tgt.y - p.y)) : 260;
+      G.bullets.push({ x: p.x, y: p.y, vx: Math.cos(aim) * 560, vy: Math.sin(aim) * 560, life: d / 560, dmg: 45 * pow, crit: false, pierce: 0, r: 7, color: '#9ccc65', explode: 115, leech: 0, hit: [], grenade: true });
+      break;
+    }
+    case 'rapid': G.buff.rapid = 4; burst(p.x, p.y, '#ff7043', 16, 140); break;
+    case 'chain': {
+      let from = { x: p.x, y: p.y }, range = 460; const hit = [], pts = [[p.x, p.y]];
+      for (let i = 0; i < 6; i++) {
+        let best = null, bd = range * range;
+        for (const e of G.enemies) { if (e.dead || hit.includes(e)) continue; const d = U.dist2(from.x, from.y, e.x, e.y); if (d < bd) { bd = d; best = e; } }
+        if (!best) break;
+        hit.push(best); pts.push([best.x, best.y]);
+        damageEnemy(best, 32 * pow * (1 - i * .08), false, best.x - from.x, best.y - from.y);
+        from = best; range = 280;
+      }
+      if (!hit.length) { p.mp += ab.mana; G.abCd = 0; toast('No target in range'); return; }
+      G.bolts.push({ pts, life: .25 });
+      break;
+    }
+    case 'warcry': {
+      G.parts.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: .35, max: .35, color: 'rgba(255,214,0,.6)', size: 230, ring: true });
+      for (const e of G.enemies) {
+        if (e.dead) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+        if (d < 230 + e.r) { damageEnemy(e, 28 * pow, false, dx, dy); if (!e.boss) { e.kx += dx / (d || 1) * 900; e.ky += dy / (d || 1) * 900; } }
+      }
+      p.hp = Math.min(st.maxHp, p.hp + st.maxHp * .25); p.inv = 2;
+      G.shake = .3;
+      break;
+    }
+    case 'shadow': {
+      let dx = Input.move.x, dy = Input.move.y;
+      if (!dx && !dy) { dx = Math.cos(p.ang); dy = Math.sin(p.ang); }
+      const d = Math.hypot(dx, dy);
+      burst(p.x, p.y, '#90a4ae', 16, 120);
+      for (let i = 0; i < 8; i++) { p.x += dx / d * 22; p.y += dy / d * 22; World.collide(p); }
+      burst(p.x, p.y, '#90a4ae', 16, 120);
+      p.inv = 1; G.buff.crit = 3; G.buff.spd = 3;
+      break;
+    }
+  }
+  Sfx.play('level');
 }
 
 function shoot() {
@@ -152,11 +242,11 @@ function shoot() {
     let a = p.ang;
     if (ws.bullets > 1) a += U.rand(-ws.spread, ws.spread);
     else a += (i - (n - 1) / 2) * .13 + U.rand(-ws.spread, ws.spread);
-    const crit = Math.random() < st.crit + ws.crit;
+    const crit = G.buff.crit > 0 || Math.random() < st.crit + ws.crit;
     const c = Math.cos(a), s = Math.sin(a), spd = ws.speed * U.rand(.95, 1.05);
     G.bullets.push({
       x: p.x + c * 22, y: p.y + s * 22, vx: c * spd, vy: s * spd, life: ws.range / ws.speed,
-      dmg: ws.dmg * st.dmgMul * (crit ? 2 : 1), crit, pierce: ws.pierce + st.pierce, r: ws.size,
+      dmg: ws.dmg * st.dmgMul * (crit ? 2 : 1), crit, pierce: ws.pierce + st.pierce + (G.buff.rapid > 0 ? 1 : 0), r: ws.size,
       color: crit ? '#ffffff' : ws.color, explode: ws.explode, leech: ws.leech + st.leech, hit: [],
     });
   }
@@ -171,6 +261,7 @@ function shoot() {
 function hurtPlayer(dmg, src) {
   const p = G.p;
   if (p.inv > 0 || p.dashT > 0 || G.atHome) return;
+  dmg *= 1 - G.st.dr;
   p.hp -= dmg; p.inv = .22; G.hurtFlash = .35; G.shake = Math.min(.4, G.shake + .15);
   addText(p.x, p.y - 26, '-' + Math.round(dmg), '#ff5252', 16);
   Sfx.play('hurt');
@@ -182,8 +273,8 @@ function gainXp(x) {
   const S = G.save, run = S.run;
   S.xp += x;
   while (S.xp >= xpNeed(S.level)) {
-    S.xp -= xpNeed(S.level); S.level++; S.sp++;
-    UI.banner('LEVEL ' + S.level, '+1 skill point');
+    S.xp -= xpNeed(S.level); S.level++; S.sp++; S.ap += ATTR_PER_LEVEL;
+    UI.banner('LEVEL ' + S.level, `+1 skill point · +${ATTR_PER_LEVEL} attribute points`);
     Sfx.play('level');
     recalc(); G.p.hp = Math.min(G.st.maxHp, G.p.hp + G.st.maxHp * .3);
   }
@@ -209,7 +300,7 @@ function enterHome() {
 function rollShop() {
   const b = G.save.buildings.market, lvl = Math.max(1, G.save.stats.best - 1);
   const items = [];
-  for (let i = 0; i < Math.min(8, 3 + b); i++) items.push(randomWeapon(lvl, b * .3 + G.st.luck));
+  for (let i = 0; i < Math.min(8, 3 + b); i++) items.push(randomItem(lvl, b * .3 + G.st.luck));
   G.shop = { t: G.t, items };
 }
 
@@ -219,15 +310,16 @@ function die() {
   const kept = { gold: Math.floor(run.gold * keep), scrap: Math.floor(run.scrap * keep) };
   const summary = {
     time: run.time, kills: run.kills, zone: run.maxZone, rank: run.rank, perks: run.perks.slice(),
-    lostGold: run.gold - kept.gold, lostScrap: run.scrap - kept.scrap, keptGold: kept.gold, keptScrap: kept.scrap, lostItems: S.bag.length,
+    lostGold: run.gold - kept.gold, lostScrap: run.scrap - kept.scrap, keptGold: kept.gold, keptScrap: kept.scrap, lostItems: S.inv.filter(s => s && s.kind !== 'potion').length,
   };
   S.gold += kept.gold; S.scrap += kept.scrap;
-  S.bag = []; S.stats.deaths++; S.stats.runs++;
+  S.inv = S.inv.map(s => s && s.kind === 'potion' ? s : null); S.stats.deaths++; S.stats.runs++;
   S.seed = U.randi(1, 1e9); World.reset(S.seed);
   newRun();
   G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.pendingPerks = 0;
   Object.assign(G.p, { x: 0, y: 60, dashT: 0, dashCd: 0, inv: 0 });
-  recalc(); G.p.hp = G.st.maxHp;
+  G.buff = { rapid: 0, crit: 0, spd: 0 }; G.abCd = 0;
+  recalc(); G.p.hp = G.st.maxHp; G.p.mp = G.st.maxMp;
   G.atHome = true; G.lastZone = 1; G.shop = null;
   persist();
   Sfx.play('boom');
@@ -388,7 +480,7 @@ function killEnemy(e, exploded) {
     UI.banner('OUTPOST CLEARED', 'Loot dropped!');
     for (let i = 0; i < 8; i++) addPickup('gold', e.x, e.y, Math.round(6 * e.lvl * G.st.goldMul));
     addPickup('scrap', e.x, e.y, Math.round(8 * e.lvl * G.st.scrapMul));
-    addPickup('med', e.x, e.y);
+    addPickup('potion', e.x, e.y, 'hp'); addPickup('potion', e.x, e.y, 'mp');
   }
 }
 
@@ -398,9 +490,9 @@ function dropLoot(e) {
   const coins = Math.min(6, Math.max(1, Math.ceil(g / 5)));
   for (let i = 0; i < coins; i++) addPickup('gold', e.x, e.y, Math.max(1, Math.round(g / coins)));
   if (Math.random() < (e.elite || e.boss ? 1 : .3)) addPickup('scrap', e.x, e.y, Math.max(1, Math.round(U.randi(1, 3) * (1 + .15 * (lv - 1)) * st.scrapMul)));
-  if (Math.random() < (e.elite ? .2 : .02)) addPickup('med', e.x, e.y);
+  if (Math.random() < (e.elite ? .25 : .03)) addPickup('potion', e.x, e.y, Math.random() < .55 ? 'hp' : 'mp');
   const wc = e.boss ? 1 : e.elite ? .35 : .03;
-  if (Math.random() < wc) addPickup('weapon', e.x, e.y, 0, randomWeapon(lv, st.luck + Math.min(1.5, lv * .04) + (e.boss ? .8 : e.elite ? .3 : 0), e.boss ? 2 : 0));
+  if (Math.random() < wc) addPickup('weapon', e.x, e.y, 0, randomItem(lv, st.luck + Math.min(1.5, lv * .04) + (e.boss ? .8 : e.elite ? .3 : 0), e.boss ? 2 : 0));
 }
 
 function explode(x, y, rad, dmg, fromEnemy) {
@@ -472,14 +564,16 @@ function updatePickups(dt) {
     if (d < p.r + 12 && k.lock <= 0 && k.t > .25) {
       if (k.kind === 'gold') { run.gold += k.v; S.stats.goldEarned += k.v; k.dead = true; Sfx.play('pick'); }
       else if (k.kind === 'scrap') { run.scrap += k.v; k.dead = true; addText(k.x, k.y - 10, '+' + k.v + ' ⚙️', '#cfd8dc', 12); Sfx.play('pick'); }
-      else if (k.kind === 'med') {
-        if (S.medkits < st.medCap) { S.medkits++; k.dead = true; toast('💊 Medkit'); Sfx.play('pick'); }
+      else if (k.kind === 'potion') {
+        if (invAdd(makePotion(k.v))) { k.dead = true; toast(k.v === 'hp' ? '❤️ Health Potion' : '🔷 Mana Potion', POTIONS[k.v].color); Sfx.play('pick'); }
+        else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast('🎒 Inventory full!', '#ff8a80'); }
       } else if (k.kind === 'weapon') {
-        if (S.bag.length < st.bagCap) {
-          S.bag.push(k.item); k.dead = true; Sfx.play('pick');
-          const better = weaponDps(k.item) > weaponDps(S.equipped);
-          toast(`${weaponName(k.item)} (Lv${k.item.level})${better ? ' ⬆️' : ''}`, RARITIES[k.item.rarity].color);
-        } else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast('🎒 Bag full! Equip, drop or bank items at base.', '#ff8a80'); }
+        if (invAdd(k.item)) {
+          k.dead = true; Sfx.play('pick');
+          const it = k.item, cur = isWeapon(it) ? null : S.gear[it.slot];
+          const better = isWeapon(it) ? weaponDps(it) > weaponDps(S.equipped) : !cur || armorValue(it) > armorValue(cur);
+          toast(`${itemName(it)} (Lv${it.level})${better ? ' ⬆️' : ''}`, RARITIES[it.rarity].color);
+        } else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast('🎒 Inventory full! Equip, drop or bank items at base.', '#ff8a80'); }
       }
     }
     if (k.t > k.life) k.dead = true;
@@ -505,12 +599,15 @@ function update(dt) {
   run.time += dt;
 
   // movement
-  let mx = Input.move.x, my = Input.move.y, spd = st.spd;
+  let mx = Input.move.x, my = Input.move.y, spd = st.spd * (G.buff.spd > 0 ? 1.4 : 1);
   if (p.dashT > 0) { p.dashT -= dt; spd *= 3.6; mx = p.dvx; my = p.dvy; if (Math.random() < .6) G.parts.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: .2, max: .2, color: 'rgba(120,220,255,.5)', size: p.r }); }
   p.x += mx * spd * dt; p.y += my * spd * dt;
   World.collide(p);
   p.dashCd = Math.max(0, p.dashCd - dt); p.inv = Math.max(0, p.inv - dt);
-  G.medCd = Math.max(0, G.medCd - dt);
+  G.potCd = Math.max(0, G.potCd - dt); G.abCd = Math.max(0, G.abCd - dt);
+  for (const k in G.buff) G.buff[k] = Math.max(0, G.buff[k] - dt);
+  for (const b of G.bolts) b.life -= dt;
+  G.bolts = G.bolts.filter(b => b.life > 0);
 
   // home zone
   const atHome = Math.hypot(p.x, p.y) < HOME_R;
@@ -521,6 +618,7 @@ function update(dt) {
   let regen = st.regen;
   if (atHome) regen += S.buildings.clinic > 0 ? st.maxHp * .25 : 5;
   p.hp = Math.min(st.maxHp, p.hp + regen * dt);
+  p.mp = Math.min(st.maxMp, p.mp + (st.mpRegen + (atHome ? st.maxMp * .25 : 0)) * dt);
 
   // zone levels
   const z = zoneOf(p.x, p.y);
@@ -545,7 +643,7 @@ function update(dt) {
     if (tgt) { p.ang = Math.atan2(tgt.y - p.y, tgt.x - p.x); fire = true; }
     else if (mx || my) p.ang = Math.atan2(my, mx);
   }
-  if (fire && G.fireCd <= 0) { shoot(); G.fireCd += 1 / (G.ws.rate * st.rateMul); }
+  if (fire && G.fireCd <= 0) { shoot(); G.fireCd += 1 / (G.ws.rate * st.rateMul * (G.buff.rapid > 0 ? 2 : 1)); }
 
   spawnEnemies(dt);
   updateOutposts(dt);
@@ -617,6 +715,7 @@ function render() {
 
   for (const t of G.turrets) drawTurret(ctx, t);
   drawBullets(ctx);
+  drawBolts(ctx);
 
   drawPlayer(ctx);
 

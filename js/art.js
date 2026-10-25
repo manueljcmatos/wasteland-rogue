@@ -66,6 +66,27 @@ const Art = {
     else ctx.drawImage(img, x - s / 2, y - s / 2, s, s);
   },
 
+  bodies: {}, icons: {},
+  bodyFor(cls) {
+    const col = (CLASS_BY_ID[cls] || CLASSES[0]).color;
+    return this.bodies[col] || (this.bodies[col] = this.bake(48, x => {
+      rrect(x, -17, -9, 11, 18, 4, '#6d4c41');
+      rrect(x, -15, -6, 6, 12, 2, '#8d6e63', 0);
+      x.save(); x.scale(.72, 1.12); ball(x, 0, 0, 15, col); x.restore();
+    }));
+  },
+  // data-URL icons for the inventory grid
+  icon(it) {
+    const key = it.kind === 'potion' ? 'p' + it.p : isWeapon(it) ? it.type + it.rarity : null;
+    if (!key) return null;
+    if (this.icons[key]) return this.icons[key];
+    const c = document.createElement('canvas'); c.width = c.height = 96;
+    const x = c.getContext('2d'); x.scale(2, 2); x.lineJoin = x.lineCap = 'round';
+    if (it.kind === 'potion') drawFlask(x, 24, 26, 1.7, POTIONS[it.p].color);
+    else { const len = GUNS[it.type].len, sc = Math.min(2.2, 40 / len); x.translate(24, 26); x.rotate(-.6); x.scale(sc, sc); drawGun(x, it.type, RARITIES[it.rarity].color, -len / 2, 0); }
+    return (this.icons[key] = c.toDataURL());
+  },
+
   init() {
     for (const k in ENEMY_TYPES) {
       const d = ENEMY_TYPES[k];
@@ -445,7 +466,7 @@ function drawPlayer(ctx) {
   // feet
   const moving = Input.move.x || Input.move.y, sw = moving ? Math.sin(G.t * 14) * 6 : 0;
   for (const s of [-1, 1]) { ctx.fillStyle = '#263238'; ctx.beginPath(); ctx.ellipse(sw * s, s * 8, 6, 4.5, 0, 0, 6.283); ctx.fill(); }
-  Art.blit(ctx, Art.playerBody, 0, 0);
+  Art.blit(ctx, Art.bodyFor(G.save.cls), 0, 0);
   const x0 = 4 - G.recoil, gy = 5;
   const len = drawGun(ctx, w.type, accent, x0, gy);
   ball(ctx, x0 + 3, gy + 2, 3.8, '#ffcc80', 1.2);
@@ -456,6 +477,8 @@ function drawPlayer(ctx) {
     poly(ctx, pts, '#fff59d', 0); ball(ctx, fx, gy, 3, '#ffffff', 0);
   }
   Art.blit(ctx, Art.playerHead, 1, 0);
+  const hel = G.save.gear.helmet;
+  if (hel) { ctx.beginPath(); ctx.arc(1, 0, 10, 0, 6.283); ctx.lineWidth = 2.5; ctx.strokeStyle = RARITIES[hel.rarity].color; ctx.stroke(); }
   ctx.restore();
   if (p.inv > 0 && Math.sin(G.t * 50) > 0) { ctx.globalAlpha = .5; ball(ctx, p.x, p.y, p.r + 2, '#ffffff', 0); ctx.globalAlpha = 1; }
 }
@@ -472,9 +495,15 @@ function drawPickup(ctx, k) {
     const pts = [];
     for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283 + G.t, rr = i % 2 ? 6 : 8.5; pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]); }
     poly(ctx, pts, '#90a4ae', 1.5); ball(ctx, x, y, 3, '#455a64', 0);
-  } else if (k.kind === 'med') {
-    rrect(ctx, x - 10, y - 10, 20, 20, 4, '#fafafa', 2);
-    ctx.fillStyle = '#e53935'; ctx.fillRect(x - 2.5, y - 7, 5, 14); ctx.fillRect(x - 7, y - 2.5, 14, 5);
+  } else if (k.kind === 'potion') {
+    drawFlask(ctx, x, y, 1, POTIONS[k.v].color);
+  } else if (k.kind === 'weapon' && !isWeapon(k.item)) {
+    const c = RARITIES[k.item.rarity].color;
+    ctx.globalAlpha = .3 + .15 * Math.sin(G.t * 4); ball(ctx, x, y, 22, c, 0); ctx.globalAlpha = 1;
+    rrect(ctx, x - 14, y - 14, 28, 28, 7, 'rgba(20,22,26,.75)', 2);
+    ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = '18px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ARMOR_SLOTS[k.item.slot].icon, x, y + 1);
   } else if (k.kind === 'weapon') {
     const c = RARITIES[k.item.rarity].color;
     if (k.item.rarity >= 2) {
@@ -513,4 +542,28 @@ function drawBullets(ctx) {
     ctx.globalAlpha = .35; ball(ctx, b.x, b.y, b.r + 4, c, 0); ctx.globalAlpha = 1;
     ball(ctx, b.x, b.y, b.r, c, 1.5); ball(ctx, b.x - 1, b.y - 1, b.r * .4, '#ffffff', 0);
   }
+}
+
+function drawFlask(ctx, x, y, s, col) {
+  rrect(ctx, x - 3.5 * s, y - 12 * s, 7 * s, 7 * s, 1.5 * s, '#cfd8dc', 1.5);
+  rrect(ctx, x - 3 * s, y - 14.5 * s, 6 * s, 3.5 * s, 1 * s, '#8d6e63', 1.2);
+  ball(ctx, x, y + 1 * s, 9 * s, col, 2);
+  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(x - 3 * s, y - 2 * s, 2 * s, 3.5 * s, -.5, 0, 6.283); ctx.fill();
+}
+
+function drawBolts(ctx) {
+  for (const b of G.bolts) {
+    ctx.globalAlpha = Math.min(1, b.life * 5);
+    for (const [w, c] of [[7, 'rgba(120,180,255,.5)'], [2.5, '#e3f2fd']]) {
+      ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath();
+      for (let i = 0; i < b.pts.length - 1; i++) {
+        const [x0, y0] = b.pts[i], [x1, y1] = b.pts[i + 1];
+        ctx.moveTo(x0, y0);
+        for (let j = 1; j < 6; j++) { const t = j / 6; ctx.lineTo(x0 + (x1 - x0) * t + U.rand(-10, 10), y0 + (y1 - y0) * t + U.rand(-10, 10)); }
+        ctx.lineTo(x1, y1);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
 }

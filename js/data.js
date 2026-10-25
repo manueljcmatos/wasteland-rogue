@@ -94,7 +94,7 @@ const BUILDINGS = [
   { id: 'market',   icon: '🏪', name: 'Market',   desc: l => `${Math.min(8, 3 + l)} weapons in shop, better rarity` },
   { id: 'vault',    icon: '🏦', name: 'Vault',    desc: l => `Keep ${Math.min(80, l * 12)}% of carried loot on death` },
   { id: 'clinic',   icon: '🏥', name: 'Clinic',   desc: l => `+${l * 15} max HP${l ? ', rapid heal at base' : ''}` },
-  { id: 'armory',   icon: '🛡️', name: 'Armory',   desc: l => `Bag ${4 + l} slots, stash ${6 + l * 4} slots` },
+  { id: 'armory',   icon: '🛡️', name: 'Armory',   desc: l => `Stash ${6 + l * 4} slots` },
   { id: 'workshop', icon: '🔧', name: 'Workshop', desc: l => `Upgrade weapons up to +${l * 2}` },
   { id: 'turrets',  icon: '🗼', name: 'Turrets',  desc: l => `${l} defense turret${l === 1 ? '' : 's'} guard the base` },
   { id: 'radar',    icon: '📡', name: 'Radar',    desc: l => l ? `Minimap range x${(1 + Math.min(l, 6) * .4).toFixed(1)}, shows outposts` : 'Reveal outposts on minimap' },
@@ -124,3 +124,52 @@ const tierOf = z => {
 };
 const recLevel = z => Math.max(1, Math.round(z * 2.2 - 1));
 const zoneOf = (x, y) => 1 + Math.floor(Math.max(0, Math.hypot(x, y) - HOME_R) / 850);
+
+// ---------- RPG layer: attributes, classes, armor, potions ----------
+const ATTRS = [
+  { id: 'str', short: 'STR', name: 'Strength',     icon: '💪', desc: '+1.5% damage, +2 max HP' },
+  { id: 'dex', short: 'DEX', name: 'Dexterity',    icon: '🎯', desc: '+1% fire rate, +0.5% crit' },
+  { id: 'agi', short: 'AGI', name: 'Agility',      icon: '🤸', desc: '+0.6% move speed, -0.8% dash cooldown' },
+  { id: 'int', short: 'INT', name: 'Intelligence', icon: '🧠', desc: '+5 max mana, +0.15 mana/s, +3% ability power' },
+  { id: 'vit', short: 'VIT', name: 'Vitality',     icon: '❤️', desc: '+8 max HP, +0.1 HP/s' },
+];
+const ATTR_PER_LEVEL = 3;
+
+const CLASSES = [
+  { id: 'soldier',  icon: '🪖', name: 'Soldier',      color: '#1e88e5', start: 'smg',
+    desc: 'Balanced and sturdy. Good at everything.',
+    base: { str: 6, dex: 5, agi: 4, int: 3, vit: 6 },
+    ability: { id: 'grenade', icon: '💣', name: 'Grenade',  mana: 25, cd: 2.5, desc: 'Throw a grenade that explodes for heavy area damage.' } },
+  { id: 'ranger',   icon: '🏹', name: 'Ranger',       color: '#43a047', start: 'rifle',
+    desc: 'Dexterous marksman with deadly fire rate.',
+    base: { str: 3, dex: 10, agi: 5, int: 3, vit: 4 },
+    ability: { id: 'rapid', icon: '🔥', name: 'Rapid Fire', mana: 35, cd: 8, desc: 'Double fire rate and +1 pierce for 4 seconds.' } },
+  { id: 'mage',     icon: '🔮', name: 'Technomancer', color: '#8e24aa', start: 'pistol',
+    desc: 'Intelligence caster. Lives on mana.',
+    base: { str: 2, dex: 4, agi: 4, int: 11, vit: 4 },
+    ability: { id: 'chain', icon: '⚡', name: 'Chain Lightning', mana: 25, cd: 1.2, desc: 'Lightning jumps between up to 6 enemies.' } },
+  { id: 'guardian', icon: '🛡️', name: 'Guardian',     color: '#78909c', start: 'shotgun',
+    desc: 'Strong tank with huge health.',
+    base: { str: 8, dex: 3, agi: 2, int: 2, vit: 10 },
+    ability: { id: 'warcry', icon: '📯', name: 'War Cry', mana: 40, cd: 9, desc: 'Shockwave damages and knocks back enemies, heals 25% HP, 2s invulnerable.' } },
+  { id: 'scout',    icon: '🗡️', name: 'Scout',        color: '#455a64', start: 'smg',
+    desc: 'Fast and agile. Hit and run.',
+    base: { str: 4, dex: 6, agi: 11, int: 3, vit: 3 },
+    ability: { id: 'shadow', icon: '👤', name: 'Shadow Step', mana: 30, cd: 5, desc: 'Blink forward, 1s invulnerable, 100% crit and +40% speed for 3s.' } },
+];
+const CLASS_BY_ID = Object.fromEntries(CLASSES.map(c => [c.id, c]));
+
+const ARMOR_SLOTS = {
+  helmet: { name: 'Helmet', icon: '🪖', armor: 5,  price: 70 },
+  chest:  { name: 'Armor',  icon: '🦺', armor: 10, price: 110 },
+  pants:  { name: 'Pants',  icon: '👖', armor: 7,  price: 80 },
+  boots:  { name: 'Boots',  icon: '🥾', armor: 4,  price: 70 },
+};
+const GEAR_SLOTS = ['helmet', 'chest', 'pants', 'boots'];
+const ITEM_STATS = ['str', 'dex', 'agi', 'int', 'vit', 'spd']; // spd = % move speed
+
+const INV_SIZE = 8, STACK = 10;
+const POTIONS = {
+  hp: { name: 'Health Potion', color: '#e53935', price: 30, desc: 'Restores 50% HP' },
+  mp: { name: 'Mana Potion',   color: '#1e88e5', price: 30, desc: 'Restores 60% mana' },
+};
