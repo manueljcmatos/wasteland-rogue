@@ -6,7 +6,7 @@ const G = {
   active: new Map(), // outpost id -> true while its garrison is spawned
   t: 0, paused: false, zoom: 1, w: 0, h: 0, dpr: 1,
   lastZone: 0, atHome: true, spawnT: 0, outT: 0, farmT: 0, saveT: 0, mmT: 0, hudT: 0,
-  fireCd: 0, shake: 0, hurtFlash: 0, pendingPerks: 0, shop: null, fullToastT: 0,
+  fireCd: 0, recallT: 0, shake: 0, hurtFlash: 0, pendingPerks: 0, shop: null, fullToastT: 0,
 };
 
 // ---------- setup ----------
@@ -169,6 +169,26 @@ function dash() {
   burst(p.x, p.y, '#9be7ff', 10, 120);
 }
 
+// ---------- return to base (costs more the further out you are) ----------
+const RECALL_TIME = 1.2;
+function recallCost() { const z = zoneOf(G.p.x, G.p.y); return Math.round(15 * z * (1 + z * .15)); }
+function startRecall() {
+  const S = G.save, c = recallCost();
+  if (G.atHome || G.paused || G.recallT > 0) return;
+  if (S.run.gold + S.gold < c) { toast(`Need 🪙${U.fmt(c)} to return to base`, '#ff8a80'); return; }
+  G.recallT = RECALL_TIME;
+  toast(`🏠 Returning to base… (🪙${U.fmt(c)})`, '#ffe082');
+}
+function finishRecall() {
+  const S = G.save, run = S.run, c = recallCost();
+  if (run.gold + S.gold < c) { toast('Not enough gold', '#ff8a80'); return; }
+  const fromRun = Math.min(run.gold, c); run.gold -= fromRun; S.gold -= c - fromRun;
+  burst(G.p.x, G.p.y, '#ffe082', 24, 200);
+  G.p.x = 0; G.p.y = 60; G.ebullets = [];
+  burst(0, 60, '#ffe082', 24, 200);
+  Sfx.play('level');
+}
+
 function usePotion(p) {
   const S = G.save, st = G.st;
   if (G.potCd > 0 || G.paused) return;
@@ -263,6 +283,7 @@ function hurtPlayer(dmg, src) {
   const p = G.p;
   if (p.inv > 0 || p.dashT > 0 || G.atHome) return;
   dmg *= 1 - G.st.dr;
+  if (G.recallT > 0) { G.recallT = 0; toast('Return interrupted!', '#ff8a80'); }
   p.hp -= dmg; p.inv = .22; G.hurtFlash = .35; G.shake = Math.min(.4, G.shake + .15);
   addText(p.x, p.y - 26, '-' + Math.round(dmg), '#ff5252', 16);
   Sfx.play('hurt');
@@ -319,7 +340,7 @@ function die() {
   newRun();
   G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.pendingPerks = 0;
   Object.assign(G.p, { x: 0, y: 60, dashT: 0, dashCd: 0, inv: 0 });
-  G.buff = { rapid: 0, crit: 0, spd: 0 }; G.abCd = 0;
+  G.buff = { rapid: 0, crit: 0, spd: 0 }; G.abCd = 0; G.recallT = 0;
   recalc(); G.p.hp = G.st.maxHp; G.p.mp = G.st.maxMp;
   G.atHome = true; G.lastZone = 1; G.shop = null;
   persist();
@@ -608,6 +629,7 @@ function update(dt) {
   World.collide(p);
   p.dashCd = Math.max(0, p.dashCd - dt); p.inv = Math.max(0, p.inv - dt);
   G.potCd = Math.max(0, G.potCd - dt); G.abCd = Math.max(0, G.abCd - dt);
+  if (G.recallT > 0) { G.recallT -= dt; if (G.recallT <= 0) { G.recallT = 0; finishRecall(); } }
   for (const k in G.buff) G.buff[k] = Math.max(0, G.buff[k] - dt);
   for (const b of G.bolts) b.life -= dt;
   G.bolts = G.bolts.filter(b => b.life > 0);
@@ -724,6 +746,11 @@ function render() {
   drawBolts(ctx);
 
   drawPlayer(ctx);
+  if (G.recallT > 0) {
+    const f = 1 - G.recallT / RECALL_TIME;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,224,130,.35)'; ctx.beginPath(); ctx.arc(p.x, p.y, 30, 0, 6.283); ctx.stroke();
+    ctx.strokeStyle = '#ffe082'; ctx.beginPath(); ctx.arc(p.x, p.y, 30, -Math.PI / 2, -Math.PI / 2 + f * 6.283); ctx.stroke();
+  }
 
   // particles
   for (const q of G.parts) {

@@ -46,6 +46,7 @@ const Realm = {
     S.realm = this.make(); S.seed = S.realm.seed; World.reset(S.seed);
     S.run.cleared = [];
     G.enemies = []; G.ebullets = []; G.bullets = []; G.pickups = []; G.decals = []; G.active.clear();
+    G.recallT = 0;
     if (wasOut) { p.x = 0; p.y = 60; G.atHome = false; } // next update runs enterHome() and banks loot
     UI.banner(`🌀 ${S.realm.name.toUpperCase()}`, 'A new realm has opened');
     Sfx.play('level');

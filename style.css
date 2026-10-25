@@ -147,3 +147,6 @@ textarea#saveCode { width: 100%; height: 64px; resize: none; background: #111418
 .npc-say { background: #252a32; border-left: 3px solid #ffca28; border-radius: 8px; padding: 8px 10px; font-style: italic; font-size: 13px; color: #dde; margin-bottom: 8px; }
 .testmode { background: #3a2a10; color: #ffcc80; border-radius: 8px; padding: 6px 10px; font-size: 12px; margin: 6px 0; }
 .chest h4 { margin: 10px 0 5px; font-size: 13px; color: #aab; }
+#btnRecall { display: none; width: auto !important; height: 40px !important; border-radius: 20px !important; padding: 0 12px !important; font-size: 13px !important; font-weight: 800; background: rgba(120,90,20,.85) !important; border-color: #ffca28 !important; }
+#btnRecall.show { display: block; }
+#btnRecall.poor { filter: grayscale(1); opacity: .6; }

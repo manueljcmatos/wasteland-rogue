@@ -14,6 +14,7 @@ Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.
 | Move | Drag left half of screen | WASD / arrows |
 | Aim & shoot | Drag right half of screen (or auto-aim) | Hold mouse |
 | Dash | 💨 | Space |
+| Return to base (gold cost grows with distance) | 🏠 | H |
 | Class ability | ✨ | F |
 | Health / mana potion | ❤️ / 🔷 | Q / R (or 1 / 2) |
 | Base menu | 🏠 (inside base) | E |
