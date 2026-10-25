@@ -39,6 +39,9 @@ const ENEMY_TYPES = {
   spitter: { name: 'Spitter', hp: 26,  speed: 80,  dmg: 9,  r: 15, color: '#4fc98a', xp: 9,   gold: [2, 6],   minLvl: 2,  w: 5, ranged: { rate: .6, speed: 330, range: 420 } },
   brute:   { name: 'Brute',   hp: 120, speed: 65,  dmg: 22, r: 26, color: '#8c4fd1', xp: 18,  gold: [4, 10],  minLvl: 3,  w: 4 },
   bomber:  { name: 'Bomber',  hp: 20,  speed: 140, dmg: 30, r: 14, color: '#ff5a2a', xp: 8,   gold: [2, 5],   minLvl: 4,  w: 3, explode: 75 },
+  sniper:  { name: 'Sniper',     hp: 40,  speed: 70,  dmg: 26, r: 15, color: '#64b5f6', xp: 14,  gold: [3, 8],   minLvl: 6,  w: 3, ranged: { rate: .35, speed: 680, range: 720 }, aimLine: true },
+  juggernaut: { name: 'Juggernaut', hp: 420, speed: 52, dmg: 38, r: 32, color: '#5d4037', xp: 45, gold: [10, 22], minLvl: 8, w: 2 },
+  charger: { name: 'Charger',    hp: 90,  speed: 110, dmg: 30, r: 20, color: '#00bfa5', xp: 22,  gold: [5, 12],  minLvl: 10, w: 3, charge: true },
   boss:    { name: 'Warlord', hp: 650, speed: 70,  dmg: 26, r: 38, color: '#ff2f6b', xp: 140, gold: [40, 80], minLvl: 99, w: 0, ranged: { rate: .9, speed: 300, range: 520, burst: 10 } },
 };
 
@@ -81,21 +84,23 @@ const SKILLS = [
   { id: 'scav',    icon: '⚙️', name: 'Scavenger',      desc: '+15% scrap found' },
   { id: 'haggle',  icon: '🤝', name: 'Haggler',        desc: '-6% shop prices, +6% sell value' },
   { id: 'lucky',   icon: '🍀', name: 'Lucky',          desc: 'Better weapon rarity' },
+  { id: 'power',   icon: '♾️', name: 'Ascension',      desc: '+3% damage & +3% max HP (no limit)', infinite: true },
 ];
 const SKILL_MAX = 5;
+const skillMax = s => s.infinite ? Infinity : SKILL_MAX;
 
 // Upgradable home buildings (persist forever)
 const BUILDINGS = [
-  { id: 'market',   icon: '🏪', name: 'Market',   desc: l => `${3 + l} weapons in shop, better rarity` },
-  { id: 'vault',    icon: '🏦', name: 'Vault',    desc: l => `Keep ${l * 15}% of carried loot on death` },
+  { id: 'market',   icon: '🏪', name: 'Market',   desc: l => `${Math.min(8, 3 + l)} weapons in shop, better rarity` },
+  { id: 'vault',    icon: '🏦', name: 'Vault',    desc: l => `Keep ${Math.min(80, l * 12)}% of carried loot on death` },
   { id: 'clinic',   icon: '🏥', name: 'Clinic',   desc: l => `+${l * 15} max HP${l ? ', rapid heal at base' : ''}` },
   { id: 'armory',   icon: '🛡️', name: 'Armory',   desc: l => `Bag ${4 + l} slots, stash ${6 + l * 4} slots` },
   { id: 'workshop', icon: '🔧', name: 'Workshop', desc: l => `Upgrade weapons up to +${l * 2}` },
   { id: 'turrets',  icon: '🗼', name: 'Turrets',  desc: l => `${l} defense turret${l === 1 ? '' : 's'} guard the base` },
-  { id: 'radar',    icon: '📡', name: 'Radar',    desc: l => l ? `Minimap range x${(1 + l * .4).toFixed(1)}, shows outposts` : 'Reveal outposts on minimap' },
+  { id: 'radar',    icon: '📡', name: 'Radar',    desc: l => l ? `Minimap range x${(1 + Math.min(l, 6) * .4).toFixed(1)}, shows outposts` : 'Reveal outposts on minimap' },
   { id: 'garden',   icon: '🌾', name: 'Farm',     desc: l => `+${l * 3} gold every 10s` },
 ];
-const BUILD_MAX = 5;
+const BUILD_MAX = 10;
 const BUILD_POS = {
   market: [0, -230], vault: [-175, -130], clinic: [175, -130], armory: [-230, 50],
   workshop: [230, 50], radar: [-150, 210], garden: [150, 210], turrets: [0, 250],
@@ -104,4 +109,18 @@ const buildCost = l => ({ gold: Math.round(120 * Math.pow(2.3, l)), scrap: Math.
 
 const xpNeed = l => Math.floor(50 * Math.pow(l, 1.45));
 const rankNeed = r => Math.floor(25 + r * 18 + r * r * 2);
+// Danger tiers: every 5 zones the world gets a new name, look and more elites. Endless.
+const TIERS = [
+  { from: 1,  name: 'Outskirts', color: '#c5e1a5', tint: null,                  elite: .05 },
+  { from: 5,  name: 'Badlands',  color: '#ffcc80', tint: 'rgba(140,70,0,.13)',   elite: .08 },
+  { from: 10, name: 'Deadlands', color: '#ce93d8', tint: 'rgba(60,0,90,.2)',     elite: .11 },
+  { from: 15, name: 'Inferno',   color: '#ff8a65', tint: 'rgba(170,25,0,.22)',   elite: .14 },
+  { from: 20, name: 'The Abyss', color: '#90a4ae', tint: 'rgba(0,0,10,.36)',     elite: .18 },
+];
+const tierOf = z => {
+  let t = TIERS[0]; for (const x of TIERS) if (z >= x.from) t = x;
+  if (z >= 25) { const depth = Math.floor((z - 20) / 5); return { ...t, name: `The Abyss ${'I'.repeat(Math.min(depth, 3))}${depth > 3 ? '+' + (depth - 3) : ''}`, elite: Math.min(.35, .18 + depth * .03) }; }
+  return t;
+};
+const recLevel = z => Math.max(1, Math.round(z * 2.2 - 1));
 const zoneOf = (x, y) => 1 + Math.floor(Math.max(0, Math.hypot(x, y) - HOME_R) / 850);

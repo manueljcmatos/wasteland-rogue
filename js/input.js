@@ -44,6 +44,7 @@ const Input = {
     addEventListener('mouseup', () => { this.mouse.down = false; });
     addEventListener('blur', () => { this.keys = {}; this.mouse.down = false; this.left = this.right = null; });
     addEventListener('keydown', e => {
+      if (e.target.closest && e.target.closest('textarea,input')) return;
       Sfx.unlock();
       this.keys[e.code] = true;
       if (e.repeat) return;

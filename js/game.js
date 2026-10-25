@@ -27,8 +27,8 @@ function newRun() {
 function computeStats() {
   const S = G.save, k = S.skills, b = S.buildings, m = S.run.mod;
   return {
-    maxHp: Math.round((100 + (S.level - 1) * 5 + b.clinic * 15 + m.hp) * (1 + k.tough * .1)),
-    dmgMul: 1 + k.marks * .08 + m.dmg,
+    maxHp: Math.round((100 + (S.level - 1) * 5 + b.clinic * 15 + m.hp) * (1 + k.tough * .1) * (1 + k.power * .03)),
+    dmgMul: (1 + k.marks * .08 + m.dmg) * (1 + k.power * .03),
     rateMul: 1 + k.trigger * .06 + m.rate,
     spd: 200 * (1 + k.fleet * .05 + m.spd),
     crit: .05 + k.crit * .04 + m.crit,
@@ -60,6 +60,7 @@ function buildTurrets() {
 }
 
 function persist() {
+  if (G.noSave) return; // a restore/erase is reloading the page
   const r = G.save.run;
   r.x = G.p.x; r.y = G.p.y; r.hp = G.p.hp;
   Save.write(G.save);
@@ -70,6 +71,7 @@ function init() {
   G.mm = document.getElementById('minimap'); G.mmx = G.mm.getContext('2d');
   resize(); addEventListener('resize', resize);
   G.save = Save.load();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { /* not supported */ }
   World.reset(G.save.seed);
   if (!G.save.run) newRun();
   const r = G.save.run;
@@ -84,6 +86,7 @@ function init() {
   if (!G.save.seenIntro) UI.intro();
   addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (!UI.open) UI.act('menu'); } });
   addEventListener('pagehide', persist);
+  addEventListener('beforeunload', persist);
   let last = performance.now();
   const loop = now => {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
@@ -200,13 +203,13 @@ function enterHome() {
 function rollShop() {
   const b = G.save.buildings.market, lvl = Math.max(1, G.save.stats.best - 1);
   const items = [];
-  for (let i = 0; i < 3 + b; i++) items.push(randomWeapon(lvl, b * .3 + G.st.luck));
+  for (let i = 0; i < Math.min(8, 3 + b); i++) items.push(randomWeapon(lvl, b * .3 + G.st.luck));
   G.shop = { t: G.t, items };
 }
 
 // ---------- death ----------
 function die() {
-  const S = G.save, run = S.run, keep = S.buildings.vault * .15;
+  const S = G.save, run = S.run, keep = Math.min(.8, S.buildings.vault * .12);
   const kept = { gold: Math.floor(run.gold * keep), scrap: Math.floor(run.scrap * keep) };
   const summary = {
     time: run.time, kills: run.kills, zone: run.maxZone, rank: run.rank, perks: run.perks.slice(),
@@ -228,12 +231,13 @@ function die() {
 // ---------- enemies ----------
 function makeEnemy(type, x, y, lvl, outpost = null) {
   const d = ENEMY_TYPES[type];
-  const elite = !outpost && type !== 'boss' && lvl >= 2 && Math.random() < .06;
-  const hpMul = (1 + .3 * (lvl - 1)) * (elite ? 3 : 1);
+  const elite = !outpost && type !== 'boss' && lvl >= 2 && Math.random() < tierOf(lvl).elite;
+  // linear + gentle exponential growth so deeper zones always out-scale you eventually
+  const hpMul = (1 + .3 * (lvl - 1)) * Math.pow(1.03, lvl - 1) * (elite ? 3 : 1);
   const e = {
     type, def: d, x, y, lvl, elite, outpost, boss: type === 'boss',
     r: d.r * (elite ? 1.3 : 1), hp: d.hp * hpMul, maxHp: d.hp * hpMul,
-    speed: d.speed * U.rand(.9, 1.1) * (1 + .02 * Math.min(lvl, 15)), dmg: d.dmg * (1 + .14 * (lvl - 1)) * (elite ? 1.5 : 1),
+    speed: d.speed * U.rand(.9, 1.1) * (1 + .02 * Math.min(lvl, 15)), dmg: d.dmg * (1 + .14 * (lvl - 1)) * Math.pow(1.02, lvl - 1) * (elite ? 1.5 : 1), chargeT: 0, windT: 0, cdx: 0, cdy: 0,
     atkCd: U.rand(.5, 1.5), touchCd: 0, hitT: 0, kx: 0, ky: 0, strafe: Math.random() < .5 ? 1 : -1, hx: x, hy: y, dead: false,
   };
   G.enemies.push(e);
@@ -246,7 +250,7 @@ function spawnEnemies(dt) {
   G.spawnT = .35;
   const p = G.p;
   if (Math.hypot(p.x, p.y) < HOME_R + 150) return;
-  const cap = Math.min(45, 7 + G.lastZone * 3);
+  const cap = Math.min(55, 7 + G.lastZone * 3);
   let normal = 0; for (const e of G.enemies) if (!e.outpost) normal++;
   if (normal >= cap) return;
   const rad = Math.hypot(G.w, G.h) / 2 / G.zoom + 60;
@@ -297,7 +301,7 @@ function enemyShoot(e, nx, ny) {
   const shots = R.burst && Math.random() < .5 ? R.burst : 1;
   for (let i = 0; i < shots; i++) {
     const a = Math.atan2(ny, nx) + (shots > 1 ? i / shots * 6.283 : U.rand(-.08, .08));
-    G.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * R.speed, vy: Math.sin(a) * R.speed, dmg: e.dmg * (shots > 1 ? .7 : 1), life: R.range / R.speed * 1.3, r: e.boss ? 8 : 6 });
+    G.ebullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * R.speed, vy: Math.sin(a) * R.speed, dmg: e.dmg * (shots > 1 ? .7 : 1), life: R.range / R.speed * 1.3, r: e.boss ? 8 : e.def.aimLine ? 5 : 6, sniper: !!e.def.aimLine });
   }
 }
 
@@ -320,6 +324,11 @@ function updateEnemies(dt) {
       if (d < R.range * .55) { tx = -tx; ty = -ty; spd *= .7; }
       else if (d < R.range * .85) { const s = e.strafe; const ox = tx; tx = -ty * s; ty = ox * s; spd *= .5; }
       if (d < R.range && e.atkCd <= 0) { e.atkCd = 1 / R.rate * U.rand(.8, 1.2); enemyShoot(e, dx / d, dy / d); }
+    } else if (e.def.charge) {
+      // wind up (stand still, flashing), then charge in a straight line
+      if (e.windT > 0) { e.windT -= dt; spd = 0; if (e.windT <= 0) { e.chargeT = .6; } }
+      else if (e.chargeT > 0) { e.chargeT -= dt; tx = e.cdx; ty = e.cdy; spd *= 4.8; }
+      else if (d < 380 && e.atkCd <= 0) { e.windT = .5; e.atkCd = 3.2; e.cdx = dx / d; e.cdy = dy / d; }
     }
     e.x += (tx * spd + e.kx) * dt; e.y += (ty * spd + e.ky) * dt;
     e.kx *= decay; e.ky *= decay;
@@ -382,7 +391,7 @@ function dropLoot(e) {
   if (Math.random() < (e.elite || e.boss ? 1 : .3)) addPickup('scrap', e.x, e.y, Math.max(1, Math.round(U.randi(1, 3) * (1 + .15 * (lv - 1)) * st.scrapMul)));
   if (Math.random() < (e.elite ? .2 : .02)) addPickup('med', e.x, e.y);
   const wc = e.boss ? 1 : e.elite ? .35 : .03;
-  if (Math.random() < wc) addPickup('weapon', e.x, e.y, 0, randomWeapon(lv, st.luck + (e.boss ? .8 : e.elite ? .3 : 0), e.boss ? 2 : 0));
+  if (Math.random() < wc) addPickup('weapon', e.x, e.y, 0, randomWeapon(lv, st.luck + Math.min(1.5, lv * .04) + (e.boss ? .8 : e.elite ? .3 : 0), e.boss ? 2 : 0));
 }
 
 function explode(x, y, rad, dmg, fromEnemy) {
@@ -504,7 +513,12 @@ function update(dt) {
   // zone levels
   const z = zoneOf(p.x, p.y);
   if (z !== G.lastZone) {
-    if (z > G.lastZone && !atHome) UI.banner('ZONE ' + z, BIOMES[World.biomeAt(p.x, p.y)].name);
+    if (z > G.lastZone && !atHome) {
+      const t = tierOf(z), newTier = tierOf(G.lastZone).name !== t.name;
+      if (newTier) UI.banner(`<span style="color:${t.color}">${t.name.toUpperCase()}</span>`, `Zone ${z} · enemies grow stronger · rec. level ${recLevel(z)}`);
+      else UI.banner('ZONE ' + z, `${BIOMES[World.biomeAt(p.x, p.y)].name} · rec. level ${recLevel(z)}`);
+      if (z > S.stats.best) toast(`🏆 New record: Zone ${z}`, '#ffe082');
+    }
     G.lastZone = z;
     if (z > run.maxZone) run.maxZone = z;
     if (z > S.stats.best) S.stats.best = z;
@@ -535,7 +549,7 @@ function update(dt) {
   if (G.farmT >= 10) { G.farmT = 0; const g = S.buildings.garden * 3; if (g) S.gold += g; }
 
   G.saveT += dt;
-  if (G.saveT > 8) { G.saveT = 0; persist(); }
+  if (G.saveT > 3) { G.saveT = 0; persist(); }
 }
 
 // ---------- rendering ----------
@@ -558,6 +572,8 @@ function render() {
     ctx.fillStyle = World.tile(tx, ty).col;
     ctx.fillRect(tx * TILE, ty * TILE, TILE + 1, TILE + 1);
   }
+  const tint = !G.atHome && tierOf(G.lastZone).tint;
+  if (tint) { ctx.fillStyle = tint; ctx.fillRect(cx - hw - 10, cy - hh - 10, hw * 2 + 20, hh * 2 + 20); }
 
   const vis = (x, y, r) => x + r > cx - hw && x - r < cx + hw && y + r > cy - hh && y - r < cy + hh;
 
@@ -587,6 +603,16 @@ function render() {
   }
 
   // enemies
+  for (const e of G.enemies) {
+    if (e.def.aimLine && !G.atHome && e.atkCd < .7 && U.dist2(e.x, e.y, p.x, p.y) < e.def.ranged.range ** 2) {
+      ctx.strokeStyle = `rgba(255,40,40,${.25 + .5 * (1 - e.atkCd / .7)})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    }
+    if (e.windT > 0) {
+      ctx.strokeStyle = 'rgba(0,255,200,.45)'; ctx.lineWidth = e.r * 1.2;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + e.cdx * 300, e.y + e.cdy * 300); ctx.stroke();
+    }
+  }
   for (const e of G.enemies) if (vis(e.x, e.y, e.r + 10)) drawEnemy(ctx, e);
 
   // turrets
@@ -600,7 +626,7 @@ function render() {
     ctx.strokeStyle = b.color; ctx.lineWidth = b.r * 1.2; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * .018, b.y - b.vy * .018); ctx.stroke();
   }
-  for (const b of G.ebullets) { circle(ctx, b.x, b.y, b.r + 2, 'rgba(180,255,120,.35)'); circle(ctx, b.x, b.y, b.r, '#b2ff59'); }
+  for (const b of G.ebullets) { circle(ctx, b.x, b.y, b.r + 2, b.sniper ? 'rgba(120,180,255,.4)' : 'rgba(180,255,120,.35)'); circle(ctx, b.x, b.y, b.r, b.sniper ? '#e3f2fd' : '#b2ff59'); }
 
   drawPlayer(ctx);
 
@@ -706,21 +732,21 @@ function drawHome(ctx) {
   circle(ctx, 0, 0, 16, '#5d4037'); circle(ctx, 0, 0, 10 * f, '#ff7043'); circle(ctx, 0, -2, 5 * f, '#ffee58');
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const b of BUILDINGS) {
-    const [x, y] = BUILD_POS[b.id], l = B[b.id], s = 50 + l * 7;
+    const [x, y] = BUILD_POS[b.id], l = B[b.id], s = 50 + Math.min(l, 10) * 5;
     if (l === 0) {
       ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2;
       ctx.strokeRect(x - s / 2, y - s / 2, s, s); ctx.setLineDash([]);
       ctx.globalAlpha = .4;
     } else {
       ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x - s / 2 + 5, y - s / 2 + 7, s, s);
-      ctx.fillStyle = ['#795548', '#8d6e63', '#78909c', '#90a4ae', '#b0bec5', '#ffd54f'][l];
+      ctx.fillStyle = ['#795548', '#8d6e63', '#78909c', '#90a4ae', '#b0bec5', '#ffd54f'][Math.min(5, Math.ceil(l / 2))];
       ctx.fillRect(x - s / 2, y - s / 2, s, s);
       ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(x - s / 2, y + s / 4, s, s / 4);
     }
-    ctx.font = `${22 + l * 2}px system-ui`; ctx.fillText(b.icon, x, y - 2);
+    ctx.font = `${22 + l}px system-ui`; ctx.fillText(b.icon, x, y - 2);
     ctx.globalAlpha = 1;
     ctx.font = '700 11px system-ui'; ctx.fillStyle = '#fff';
-    ctx.fillText(`${b.name}${l ? ' ' + 'I II III IV V'.split(' ')[l - 1] : ''}`, x, y + s / 2 + 10);
+    ctx.fillText(`${b.name}${l ? ' ' + l : ''}`, x, y + s / 2 + 10);
   }
 }
 
@@ -778,7 +804,7 @@ function drawPlayer(ctx) {
 
 function drawMinimap() {
   const m = G.mmx, S = 120, p = G.p, radar = G.save.buildings.radar;
-  const range = 1300 * (1 + radar * .4), sc = S / 2 / range, cells = 20, cs = S / cells;
+  const range = 1300 * (1 + Math.min(radar, 6) * .4), sc = S / 2 / range, cells = 20, cs = S / cells;
   for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) {
     const wx = p.x + ((i + .5) * cs - S / 2) / sc, wy = p.y + ((j + .5) * cs - S / 2) / sc;
     const c = BIOMES[World.biomeAt(wx, wy)].c;

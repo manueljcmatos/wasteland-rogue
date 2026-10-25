@@ -34,5 +34,13 @@ const Save = {
   },
 
   write(s) { try { localStorage.setItem(this.KEY, JSON.stringify(s)); } catch (e) { /* storage full or blocked */ } },
+  exportCode(s) { return 'WR1.' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))); },
+  importCode(code) {
+    code = (code || '').trim().replace(/\s+/g, '');
+    if (code.startsWith('WR1.')) code = code.slice(4);
+    const s = JSON.parse(decodeURIComponent(escape(atob(code))));
+    if (!s || s.v !== 1 || !s.equipped || !s.buildings) throw new Error('bad save');
+    return s;
+  },
   wipe() { try { localStorage.removeItem(this.KEY); } catch (e) { /* ignore */ } },
 };

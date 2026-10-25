@@ -31,7 +31,10 @@ const UI = {
     persist();
     if (G.pendingPerks > 0) this.perkChoice();
   },
-  refresh() { if (this.open && this[this.open + 'Html']) $('panel').innerHTML = this[this.open + 'Html'](); },
+  refresh() {
+    if (this.open && this[this.open + 'Html']) $('panel').innerHTML = this[this.open + 'Html']();
+    if (this.open === 'menu') $('saveCode').value = Save.exportCode(G.save);
+  },
   head(title) { return `<h2><span>${title}</span><button class="x" data-act="close">✕</button></h2>`; },
   wallet() {
     const S = G.save, r = S.run;
@@ -61,7 +64,12 @@ const UI = {
     $('rankText').textContent = `Run rank ${r.rank} · next perk`;
     $('goldTxt').textContent = G.atHome ? U.fmt(S.gold) : U.fmt(r.gold);
     $('scrapTxt').textContent = G.atHome ? U.fmt(S.scrap) : U.fmt(r.scrap);
-    $('zoneLbl').textContent = G.atHome ? '🏠 Safe base' : `Zone ${G.lastZone} · ${BIOMES[World.biomeAt(p.x, p.y)].name}`;
+    const zl = $('zoneLbl');
+    if (G.atHome) { zl.textContent = '🏠 Safe base'; zl.style.color = ''; }
+    else {
+      const t = tierOf(G.lastZone), hard = recLevel(G.lastZone) > S.level + 3;
+      zl.textContent = `${hard ? '⚠️ ' : ''}Zone ${G.lastZone} · ${t.name}`; zl.style.color = hard ? '#ff8a80' : t.color;
+    }
     $('spBadge').textContent = S.sp > 0 ? S.sp : '';
     $('medCount').textContent = S.medkits;
     $('btnDash').classList.toggle('cd', p.dashCd > 0);
@@ -80,7 +88,7 @@ const UI = {
       case 'close': this.close(); return;
       case 'dash': dash(); return;
       case 'med': useMed(); return;
-      case 'menu': this.show('menu', this.menuHtml()); return;
+      case 'menu': persist(); this.show('menu', this.menuHtml()); $('saveCode').value = Save.exportCode(S); return;
       case 'bag': this.show('bag', this.bagHtml()); return;
       case 'skills': this.show('skills', this.skillsHtml()); return;
       case 'home': if (G.atHome) this.show('home', this.homeHtml()); return;
@@ -129,7 +137,7 @@ const UI = {
         break;
       }
       case 'skill': {
-        if (S.sp <= 0 || S.skills[d.id] >= SKILL_MAX) return;
+        if (S.sp <= 0 || S.skills[d.id] >= skillMax(SKILLS.find(s => s.id === d.id))) return;
         S.sp--; S.skills[d.id]++; recalc(); Sfx.play('buy');
         break;
       }
@@ -161,8 +169,22 @@ const UI = {
       case 'perk': this.pickPerk(+d.i); return;
       case 'autoaim': S.settings.autoAim = !S.settings.autoAim; break;
       case 'sound': S.settings.sound = Sfx.on = !S.settings.sound; break;
+      case 'copysave': {
+        persist();
+        const ta = $('saveCode'); ta.value = Save.exportCode(G.save);
+        const fallback = () => { ta.focus(); ta.select(); try { document.execCommand('copy'); this.toast('Code copied'); } catch (e) { this.toast('Select the code and copy it'); } };
+        if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => this.toast('Code copied ✔'), fallback); else fallback();
+        return;
+      }
+      case 'loadsave': {
+        let s;
+        try { s = Save.importCode($('saveCode').value); } catch (e) { this.toast('That code is not valid', '#ff8a80'); return; }
+        if (!confirm(`Load this save (Level ${s.level}, 🪙${U.fmt(s.gold)})? Current progress will be replaced.`)) return;
+        G.noSave = true; Save.write(s); location.reload();
+        return;
+      }
       case 'wipe':
-        if (confirm('Erase ALL progress (base, skills, items)?')) { Save.wipe(); location.reload(); }
+        if (confirm('Erase ALL progress (base, skills, items)?')) { G.noSave = true; Save.wipe(); location.reload(); }
         return;
       case 'rise': this.open = null; this.close(); return;
       case 'start': S.seenIntro = true; this.open = null; this.close(); return;
@@ -193,13 +215,17 @@ const UI = {
     return `${this.head('Paused')}
       <div class="stats">
         <div>Level<b>${S.level}</b></div><div>Best zone<b>${st.best}</b></div>
-        <div>Total kills<b>${U.fmt(st.kills)}</b></div><div>Warlords slain<b>${st.bosses}</b></div>
+        <div>Best tier<b style="font-size:15px">${tierOf(st.best).name}</b></div><div>Total kills<b>${U.fmt(st.kills)}</b></div><div>Warlords slain<b>${st.bosses}</b></div>
         <div>Runs<b>${st.runs}</b></div><div>This run<b>${U.time(S.run.time)}</b></div>
       </div>
       ${S.run.perks.length ? `<h3>Run perks</h3><div class="chips">${S.run.perks.map(id => `<span>${PERKS.find(p => p.id === id).icon} ${PERKS.find(p => p.id === id).name}</span>`).join('')}</div>` : ''}
       <h3>Settings</h3>
       <div class="row"><div class="tx"><b>Auto-aim</b><div>Shoot nearest enemy automatically when not aiming</div></div><button class="btn ${S.settings.autoAim ? 'good' : 'alt'}" data-act="autoaim">${S.settings.autoAim ? 'ON' : 'OFF'}</button></div>
       <div class="row"><div class="tx"><b>Sound</b></div><button class="btn ${S.settings.sound ? 'good' : 'alt'}" data-act="sound">${S.settings.sound ? 'ON' : 'OFF'}</button></div>
+      <h3>Save backup</h3>
+      <p class="muted">Progress saves automatically on this device. Copy this code somewhere safe (e.g. Notes) to restore it later or on another device.</p>
+      <textarea id="saveCode" spellcheck="false"></textarea>
+      <div class="cb"><button class="btn" data-act="copysave">📋 Copy code</button><button class="btn alt" data-act="loadsave">📥 Load pasted code</button></div>
       <h3>How to play</h3>
       <p>${this.helpText()}</p>
       <button class="btn big" data-act="close">▶ Resume</button>
@@ -208,7 +234,7 @@ const UI = {
 
   helpText() {
     return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes through danger, 💊 heals.
-      The further you roam from base, the higher the <b>zone level</b>: tougher enemies, better loot.
+      The further you roam from base, the higher the <b>zone level</b>: tougher enemies, better loot. The world is endless: every 5 zones is a new danger tier (Outskirts → Badlands → Deadlands → Inferno → The Abyss…) with new enemy types.
       Clear red <b>outposts</b> by killing their 👑 Warlord. Gold and scrap you carry are only safe once you
       <b>return to base</b>. Spend them to upgrade buildings, buy and upgrade weapons.
       Dying ends the run: you lose carried loot, your bag and run perks, and the world reshapes, but your level, skills, base and stash remain.
@@ -247,8 +273,9 @@ const UI = {
       <p>Skill points: <b style="color:#ffe082">${S.sp}</b> <span class="muted">· earn 1 per level · permanent</span></p>
       ${SKILLS.map(s => {
         const l = S.skills[s.id];
-        return `<div class="row"><div class="ic">${s.icon}</div><div class="tx"><b>${s.name}</b><span class="pips">${'<i class="on"></i>'.repeat(l)}${'<i></i>'.repeat(SKILL_MAX - l)}</span><div>${s.desc} per rank</div></div>
-          <button class="btn" data-act="skill" data-id="${s.id}" ${S.sp > 0 && l < SKILL_MAX ? '' : 'disabled'}>${l >= SKILL_MAX ? 'MAX' : '+1'}</button></div>`;
+        const mx = skillMax(s), pips = s.infinite ? `<span class="pips" style="color:#ffca28;font-size:12px">Rank ${l}</span>` : `<span class="pips">${'<i class="on"></i>'.repeat(l)}${'<i></i>'.repeat(SKILL_MAX - l)}</span>`;
+        return `<div class="row"><div class="ic">${s.icon}</div><div class="tx"><b>${s.name}</b>${pips}<div>${s.desc}${s.infinite ? '' : ' per rank'}</div></div>
+          <button class="btn" data-act="skill" data-id="${s.id}" ${S.sp > 0 && l < mx ? '' : 'disabled'}>${l >= mx ? 'MAX' : '+1'}</button></div>`;
       }).join('')}`;
   },
 
