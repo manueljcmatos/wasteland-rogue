@@ -49,7 +49,8 @@ style.css       HUD and menu styling
 js/data.js      all balance data (weapons, enemies, perks, skills, buildings)
 js/items.js     weapon generation and stats
 js/world.js     procedural world, biomes, obstacles, outposts
-js/game.js      simulation loop and canvas rendering
+js/game.js      simulation loop and render loop
+js/art.js       all visuals: baked sprites, ground textures, buildings, effects
 js/ui.js        menus: base, shop, stash, workshop, bag, skills, perks
 js/input.js     twin-stick touch + keyboard/mouse
 js/save.js      persistence

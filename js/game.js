@@ -1,7 +1,7 @@
 'use strict';
 // Core simulation + rendering.
 const G = {
-  enemies: [], bullets: [], ebullets: [], pickups: [], parts: [], texts: [], turrets: [],
+  enemies: [], bullets: [], decals: [], recoil: 0, flashT: 0, ebullets: [], pickups: [], parts: [], texts: [], turrets: [],
   active: new Map(), // outpost id -> true while its garrison is spawned
   t: 0, paused: false, zoom: 1, w: 0, h: 0, dpr: 1,
   lastZone: 0, atHome: true, spawnT: 0, outT: 0, farmT: 0, saveT: 0, mmT: 0, hudT: 0,
@@ -81,6 +81,7 @@ function init() {
   G.atHome = Math.hypot(G.p.x, G.p.y) < HOME_R;
   G.lastZone = zoneOf(G.p.x, G.p.y);
   Sfx.on = G.save.settings.sound;
+  Art.init();
   Input.init(G.canvas);
   UI.init();
   if (!G.save.seenIntro) UI.intro();
@@ -159,6 +160,11 @@ function shoot() {
       color: crit ? '#ffffff' : ws.color, explode: ws.explode, leech: ws.leech + st.leech, hit: [],
     });
   }
+  G.recoil = Math.min(6, 2 + ws.dmg / 20); G.flashT = .05;
+  if (Math.random() < .7) {
+    const c = Math.cos(p.ang), s = Math.sin(p.ang), side = U.rand(60, 120);
+    G.parts.push({ x: p.x + c * 10, y: p.y + s * 10, vx: -s * side + U.rand(-20, 20), vy: c * side + U.rand(-20, 20), life: .45, max: .45, color: '#ffca28', size: 1.6 });
+  }
   Sfx.play('shoot');
 }
 
@@ -219,7 +225,7 @@ function die() {
   S.bag = []; S.stats.deaths++; S.stats.runs++;
   S.seed = U.randi(1, 1e9); World.reset(S.seed);
   newRun();
-  G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.active.clear(); G.pendingPerks = 0;
+  G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.pendingPerks = 0;
   Object.assign(G.p, { x: 0, y: 60, dashT: 0, dashCd: 0, inv: 0 });
   recalc(); G.p.hp = G.st.maxHp;
   G.atHome = true; G.lastZone = 1; G.shop = null;
@@ -331,6 +337,7 @@ function updateEnemies(dt) {
       else if (d < 380 && e.atkCd <= 0) { e.windT = .5; e.atkCd = 3.2; e.cdx = dx / d; e.cdy = dy / d; }
     }
     e.x += (tx * spd + e.kx) * dt; e.y += (ty * spd + e.ky) * dt;
+    e.walk = (e.walk || 0) + spd * dt * .09;
     e.kx *= decay; e.ky *= decay;
     // enemies can't enter the base
     const dh = Math.hypot(e.x, e.y), lim = HOME_R + e.r;
@@ -368,6 +375,8 @@ function killEnemy(e, exploded) {
   const run = G.save.run;
   if (e.def.explode) explode(e.x, e.y, e.def.explode, e.dmg, true);
   burst(e.x, e.y, e.def.color, e.boss ? 40 : 12, e.boss ? 300 : 180, e.boss ? 5 : 3);
+  G.decals.push({ x: e.x, y: e.y, r: e.r * 1.1, color: shade(e.def.color, -.5), rot: Math.random() * 6, life: 25 });
+  if (G.decals.length > 70) G.decals.shift();
   Sfx.play('kill');
   run.kills++; G.save.stats.kills++;
   gainXp(Math.round(e.def.xp * (1 + .2 * (e.lvl - 1)) * (e.elite ? 3 : 1)));
@@ -483,6 +492,9 @@ function updateFx(dt) {
   G.parts = G.parts.filter(q => q.life > 0);
   for (const t of G.texts) { t.y -= 40 * dt; t.life -= dt; }
   G.texts = G.texts.filter(t => t.life > 0);
+  for (const d of G.decals) d.life -= dt;
+  G.decals = G.decals.filter(d => d.life > 0);
+  G.recoil = Math.max(0, G.recoil - dt * 40); G.flashT -= dt;
   if (G.parts.length > 600) G.parts.splice(0, G.parts.length - 600);
 }
 
@@ -568,10 +580,7 @@ function render() {
   const ty0 = Math.floor((cy - hh) / TILE) - 1, ty1 = Math.floor((cy + hh) / TILE) + 1;
 
   // ground
-  for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
-    ctx.fillStyle = World.tile(tx, ty).col;
-    ctx.fillRect(tx * TILE, ty * TILE, TILE + 1, TILE + 1);
-  }
+  drawGround(ctx, tx0, tx1, ty0, ty1);
   const tint = !G.atHome && tierOf(G.lastZone).tint;
   if (tint) { ctx.fillStyle = tint; ctx.fillRect(cx - hw - 10, cy - hh - 10, hw * 2 + 20, hh * 2 + 20); }
 
@@ -579,6 +588,7 @@ function render() {
 
   if (vis(0, 0, HOME_R + 40)) drawHome(ctx);
   for (const o of World.outpostsNear(cx, cy, Math.max(hw, hh) + 300)) drawOutpost(ctx, o);
+  drawDecals(ctx);
 
   // obstacles
   for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
@@ -588,18 +598,8 @@ function render() {
 
   // pickups
   for (const k of G.pickups) {
-    if (!vis(k.x, k.y, 20)) continue;
-    const bob = Math.sin(G.t * 6 + k.x) * 2, blink = k.life - k.t < 5 && Math.sin(G.t * 20) > 0;
-    if (blink) continue;
-    if (k.kind === 'gold') { circle(ctx, k.x, k.y + bob, 6, '#ffca28'); circle(ctx, k.x - 1.5, k.y + bob - 1.5, 2.5, '#fff59d'); }
-    else if (k.kind === 'scrap') { ctx.fillStyle = '#90a4ae'; ctx.fillRect(k.x - 6, k.y - 6 + bob, 12, 12); ctx.strokeStyle = '#455a64'; ctx.lineWidth = 2; ctx.strokeRect(k.x - 6, k.y - 6 + bob, 12, 12); }
-    else if (k.kind === 'med') { ctx.fillStyle = '#fff'; ctx.fillRect(k.x - 9, k.y - 9 + bob, 18, 18); ctx.fillStyle = '#e53935'; ctx.fillRect(k.x - 2.5, k.y - 7 + bob, 5, 14); ctx.fillRect(k.x - 7, k.y - 2.5 + bob, 14, 5); }
-    else if (k.kind === 'weapon') {
-      const c = RARITIES[k.item.rarity].color;
-      ctx.save(); ctx.globalAlpha = .25 + .15 * Math.sin(G.t * 4); circle(ctx, k.x, k.y, 26, c); ctx.restore();
-      ctx.save(); ctx.translate(k.x, k.y + bob); ctx.rotate(-.5);
-      ctx.fillStyle = c; ctx.fillRect(-14, -4, 28, 8); ctx.fillRect(-14, 0, 7, 10); ctx.restore();
-    }
+    if (!vis(k.x, k.y, 30) || (k.life - k.t < 5 && Math.sin(G.t * 20) > 0)) continue;
+    drawPickup(ctx, k);
   }
 
   // enemies
@@ -615,18 +615,8 @@ function render() {
   }
   for (const e of G.enemies) if (vis(e.x, e.y, e.r + 10)) drawEnemy(ctx, e);
 
-  // turrets
-  for (const t of G.turrets) {
-    circle(ctx, t.x, t.y, 16, '#37474f'); circle(ctx, t.x, t.y, 10, '#607d8b');
-    ctx.strokeStyle = '#80deea'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(t.x + Math.cos(t.ang) * 22, t.y + Math.sin(t.ang) * 22); ctx.stroke();
-  }
-
-  // bullets
-  for (const b of G.bullets) {
-    ctx.strokeStyle = b.color; ctx.lineWidth = b.r * 1.2; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * .018, b.y - b.vy * .018); ctx.stroke();
-  }
-  for (const b of G.ebullets) { circle(ctx, b.x, b.y, b.r + 2, b.sniper ? 'rgba(120,180,255,.4)' : 'rgba(180,255,120,.35)'); circle(ctx, b.x, b.y, b.r, b.sniper ? '#e3f2fd' : '#b2ff59'); }
+  for (const t of G.turrets) drawTurret(ctx, t);
+  drawBullets(ctx);
 
   drawPlayer(ctx);
 
@@ -694,112 +684,6 @@ function render() {
 
   G.mmT -= 1 / 60;
   if (G.mmT <= 0) { G.mmT = .25; drawMinimap(); }
-}
-
-function drawObstacle(ctx, o) {
-  if (o.kind === 'tree') {
-    circle(ctx, o.x + 4, o.y + 6, o.r, 'rgba(0,0,0,.25)');
-    circle(ctx, o.x, o.y, o.r, '#1e4620'); circle(ctx, o.x - o.r * .25, o.y - o.r * .25, o.r * .65, '#2e6b30');
-  } else if (o.kind === 'rock') {
-    circle(ctx, o.x + 3, o.y + 5, o.r, 'rgba(0,0,0,.25)');
-    ctx.fillStyle = '#6d6a66'; ctx.beginPath();
-    for (let i = 0; i < 7; i++) { const a = o.rot + i / 7 * 6.283, r = o.r * (.85 + .15 * Math.sin(i * 3 + o.rot)); ctx.lineTo(o.x + Math.cos(a) * r, o.y + Math.sin(a) * r); }
-    ctx.fill(); circle(ctx, o.x - o.r * .3, o.y - o.r * .3, o.r * .35, '#8a8681');
-  } else {
-    ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.rot);
-    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(-o.r + 4, -o.r + 5, o.r * 2, o.r * 2);
-    ctx.fillStyle = '#4b4f55'; ctx.fillRect(-o.r, -o.r, o.r * 2, o.r * 2);
-    ctx.fillStyle = '#5d6168'; ctx.fillRect(-o.r, -o.r, o.r * 2, o.r * .6);
-    ctx.restore();
-  }
-}
-
-function drawHome(ctx) {
-  const B = G.save.buildings;
-  circle(ctx, 0, 0, HOME_R, 'rgba(70,64,50,.55)');
-  // paved plaza
-  circle(ctx, 0, 0, 90, 'rgba(120,110,90,.6)');
-  // wall ring (gaps for gates), thicker with more upgrades
-  const total = Object.values(B).reduce((a, b) => a + b, 0);
-  ctx.strokeStyle = total > 20 ? '#9e9e9e' : total > 8 ? '#8d6e63' : '#6d4c41';
-  ctx.lineWidth = 10 + Math.min(10, total * .4);
-  for (let i = 0; i < 4; i++) {
-    const a = i * Math.PI / 2 + .22;
-    ctx.beginPath(); ctx.arc(0, 0, HOME_R, a, a + Math.PI / 2 - .44); ctx.stroke();
-  }
-  // campfire
-  const f = 1 + .15 * Math.sin(G.t * 12);
-  circle(ctx, 0, 0, 16, '#5d4037'); circle(ctx, 0, 0, 10 * f, '#ff7043'); circle(ctx, 0, -2, 5 * f, '#ffee58');
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (const b of BUILDINGS) {
-    const [x, y] = BUILD_POS[b.id], l = B[b.id], s = 50 + Math.min(l, 10) * 5;
-    if (l === 0) {
-      ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2;
-      ctx.strokeRect(x - s / 2, y - s / 2, s, s); ctx.setLineDash([]);
-      ctx.globalAlpha = .4;
-    } else {
-      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x - s / 2 + 5, y - s / 2 + 7, s, s);
-      ctx.fillStyle = ['#795548', '#8d6e63', '#78909c', '#90a4ae', '#b0bec5', '#ffd54f'][Math.min(5, Math.ceil(l / 2))];
-      ctx.fillRect(x - s / 2, y - s / 2, s, s);
-      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(x - s / 2, y + s / 4, s, s / 4);
-    }
-    ctx.font = `${22 + l}px system-ui`; ctx.fillText(b.icon, x, y - 2);
-    ctx.globalAlpha = 1;
-    ctx.font = '700 11px system-ui'; ctx.fillStyle = '#fff';
-    ctx.fillText(`${b.name}${l ? ' ' + l : ''}`, x, y + s / 2 + 10);
-  }
-}
-
-function drawOutpost(ctx, o) {
-  const cleared = G.save.run.cleared.includes(o.id);
-  circle(ctx, o.x, o.y, 200, cleared ? 'rgba(60,90,60,.25)' : 'rgba(120,30,30,.22)');
-  // palisade posts
-  ctx.fillStyle = cleared ? '#5d6b55' : '#5d4037';
-  for (let i = 0; i < 18; i++) {
-    if (i % 6 === 0) continue; // openings
-    const a = i / 18 * 6.283;
-    ctx.fillRect(o.x + Math.cos(a) * 190 - 7, o.y + Math.sin(a) * 190 - 7, 14, 14);
-  }
-  // tent + flag
-  ctx.fillStyle = cleared ? '#607d8b' : '#8e2430';
-  ctx.beginPath(); ctx.moveTo(o.x - 40, o.y + 50); ctx.lineTo(o.x, o.y + 5); ctx.lineTo(o.x + 40, o.y + 50); ctx.fill();
-  ctx.fillStyle = '#ddd'; ctx.fillRect(o.x + 60, o.y - 50, 4, 60);
-  ctx.fillStyle = cleared ? '#66bb6a' : '#d32f2f'; ctx.fillRect(o.x + 64, o.y - 50, 26, 16);
-}
-
-function drawEnemy(ctx, e) {
-  const p = G.p, a = Math.atan2(p.y - e.y, p.x - e.x);
-  circle(ctx, e.x + 3, e.y + 5, e.r, 'rgba(0,0,0,.25)');
-  if (e.elite) circle(ctx, e.x, e.y, e.r + 4, '#ffd54f');
-  if (e.boss) circle(ctx, e.x, e.y, e.r + 5 + Math.sin(G.t * 5) * 2, 'rgba(255,47,107,.4)');
-  circle(ctx, e.x, e.y, e.r, e.hitT > 0 ? '#fff' : e.def.color);
-  if (e.def.explode) circle(ctx, e.x, e.y, e.r * .5, Math.sin(G.t * 15) > 0 ? '#ffeb3b' : '#b71c1c');
-  // eyes
-  const ex = Math.cos(a), ey = Math.sin(a), px = -ey, py = ex, er = e.r * .22;
-  circle(ctx, e.x + ex * e.r * .45 + px * e.r * .3, e.y + ey * e.r * .45 + py * e.r * .3, er, '#111');
-  circle(ctx, e.x + ex * e.r * .45 - px * e.r * .3, e.y + ey * e.r * .45 - py * e.r * .3, er, '#111');
-  if (e.boss) { ctx.font = `${e.r}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('👑', e.x, e.y - e.r - 10); }
-  if (e.hp < e.maxHp) {
-    const w = e.boss ? 80 : e.r * 2;
-    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(e.x - w / 2, e.y - e.r - (e.boss ? 30 : 10), w, 5);
-    ctx.fillStyle = e.boss ? '#ff2f6b' : '#ef5350'; ctx.fillRect(e.x - w / 2, e.y - e.r - (e.boss ? 30 : 10), w * Math.max(0, e.hp / e.maxHp), 5);
-  }
-}
-
-function drawPlayer(ctx) {
-  const p = G.p, a = p.ang, c = Math.cos(a), s = Math.sin(a);
-  const col = RARITIES[G.save.equipped.rarity].color;
-  circle(ctx, p.x + 3, p.y + 6, p.r, 'rgba(0,0,0,.3)');
-  // gun
-  ctx.strokeStyle = '#263238'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(p.x + c * 6, p.y + s * 6); ctx.lineTo(p.x + c * 26, p.y + s * 26); ctx.stroke();
-  ctx.strokeStyle = col; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(p.x + c * 8, p.y + s * 8); ctx.lineTo(p.x + c * 25, p.y + s * 25); ctx.stroke();
-  const flash = p.inv > 0 && Math.sin(G.t * 50) > 0;
-  circle(ctx, p.x, p.y, p.r, flash ? '#fff' : '#29b6f6');
-  circle(ctx, p.x, p.y, p.r - 5, flash ? '#fff' : '#4fc3f7');
-  circle(ctx, p.x + c * 6 - s * 5, p.y + s * 6 + c * 5, 3, '#0d47a1');
-  circle(ctx, p.x + c * 6 + s * 5, p.y + s * 6 - c * 5, 3, '#0d47a1');
 }
 
 function drawMinimap() {

@@ -51,7 +51,7 @@ const BIOMES = {
   swamp:  { name: 'Marsh',      c: [56, 82, 72],   dens: .08,  obs: 'tree' },
   desert: { name: 'Dunes',      c: [181, 154, 90], dens: .035, obs: 'rock' },
   waste:  { name: 'Wasteland',  c: [107, 90, 74],  dens: .05,  obs: 'rock' },
-  snow:   { name: 'Frostlands', c: [196, 208, 218], dens: .06, obs: 'rock' },
+  snow:   { name: 'Frostlands', c: [196, 208, 218], dens: .06, obs: 'pine' },
   ruins:  { name: 'Ruins',      c: [86, 90, 96],   dens: .13,  obs: 'rubble' },
 };
 

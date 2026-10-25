@@ -31,7 +31,7 @@ const World = {
       const h2 = U.hash(tx, ty, this.seed + 21);
       obs = { x: cx + (h2 - .5) * 24, y: cy + (U.hash(tx, ty, this.seed + 22) - .5) * 24, r: 16 + h2 * 12, kind: B.obs, rot: h2 * 6 };
     }
-    c = { col, b, obs };
+    c = { col, b, obs, v: Math.floor(U.hash(tx, ty, this.seed + 3) * 4) };
     if (this.cache.size > 40000) this.cache.clear();
     this.cache.set(k, c);
     return c;
