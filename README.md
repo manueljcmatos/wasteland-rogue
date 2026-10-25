@@ -14,7 +14,8 @@ Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.
 | Move | Drag left half of screen | WASD / arrows |
 | Aim & shoot | Drag right half of screen (or auto-aim) | Hold mouse |
 | Dash | 💨 | Space |
-| Return to base (gold cost grows with distance) | 🏠 | H |
+| Return to base (gold cost grows with distance, leaves a portal back) | 🏠 | H |
+| World map | tap the minimap | M |
 | Class ability | ✨ | F |
 | Health / mana potion | ❤️ / 🔷 | Q / R (or 1 / 2) |
 | Base menu | 🏠 (inside base) | E |
@@ -22,6 +23,8 @@ Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.
 
 ## Features
 
+- **Return portal**: returning to base opens a 🌀 portal inside the base that takes you back to the exact spot you left (one use).
+- **World map**: tap the minimap for a full map with danger tier rings, outposts, the Overlord and your portal.
 - **Rotating realms** (Realm of the Mad God style): every 15 minutes of play the realm closes and a new procedurally generated map opens with a new name. You are pulled back to base safely and your loot is banked.
 - **Realm Overlord**: clear 3 outposts in a realm to awaken a 👹 Overlord. Killing it drops top loot and 💎 gems, then the realm collapses.
 - **NPCs at base**: 📜 Commander Vale (quests), 💎 Mystic Zara (gem shop), 🗝️ Keeper Bram (vault), 🔨 Smith Hilda (workshop).

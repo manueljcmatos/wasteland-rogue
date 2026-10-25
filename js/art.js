@@ -590,3 +590,21 @@ function drawNpc(ctx, n) {
   if (col) { ball(ctx, n.x, my, 11, col, 2); ctx.font = '900 16px system-ui'; ctx.fillStyle = '#3e2723'; ctx.fillText(mark, n.x, my + 1); }
   else { ctx.font = '16px system-ui'; ctx.fillText(mark, n.x, my); }
 }
+
+function drawPortal(ctx, x, y, label) {
+  const tt = G.t;
+  const g = ctx.createRadialGradient(x, y, 4, x, y, 46);
+  g.addColorStop(0, 'rgba(225,190,255,.95)'); g.addColorStop(.5, 'rgba(124,77,255,.6)'); g.addColorStop(1, 'rgba(124,77,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 46, 0, 6.283); ctx.fill();
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) {
+    ctx.strokeStyle = ['#ea80fc', '#b388ff', '#8c9eff'][i];
+    const r = 14 + i * 7, a = tt * (2.5 - i * .6) * (i % 2 ? -1 : 1);
+    ctx.beginPath(); ctx.arc(x, y, r, a, a + 4.2); ctx.stroke();
+  }
+  if (Math.random() < .4) G.parts.push({ x: x + U.rand(-20, 20), y: y + U.rand(-20, 20), vx: 0, vy: -30, life: .6, max: .6, color: '#e1bee7', size: 2 });
+  ctx.font = '700 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(label).width + 10;
+  rrect(ctx, x - tw / 2, y + 30, tw, 15, 7, 'rgba(74,20,140,.85)', 0);
+  ctx.fillStyle = '#fff'; ctx.fillText(label, x, y + 38);
+}

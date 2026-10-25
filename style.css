@@ -150,3 +150,4 @@ textarea#saveCode { width: 100%; height: 64px; resize: none; background: #111418
 #btnRecall { display: none; width: auto !important; height: 40px !important; border-radius: 20px !important; padding: 0 12px !important; font-size: 13px !important; font-weight: 800; background: rgba(120,90,20,.85) !important; border-color: #ffca28 !important; }
 #btnRecall.show { display: block; }
 #btnRecall.poor { filter: grayscale(1); opacity: .6; }
+#minimap { pointer-events: auto; cursor: pointer; }

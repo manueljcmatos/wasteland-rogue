@@ -108,8 +108,8 @@ const BUILD_POS = {
 };
 const buildCost = l => ({ gold: Math.round(120 * Math.pow(2.3, l)), scrap: Math.round(15 * Math.pow(2.1, l)) });
 
-const xpNeed = l => Math.floor(50 * Math.pow(l, 1.45));
-const rankNeed = r => Math.floor(25 + r * 18 + r * r * 2);
+const xpNeed = l => Math.floor(90 * Math.pow(l, 1.8));
+const rankNeed = r => Math.floor(40 + r * 30 + r * r * 4);
 // Danger tiers: every 5 zones the world gets a new name, look and more elites. Endless.
 const TIERS = [
   { from: 1,  name: 'Outskirts', color: '#c5e1a5', tint: null,                  elite: .05 },
@@ -124,6 +124,8 @@ const tierOf = z => {
   return { ...tr, name: t(tr.name) };
 };
 const recLevel = z => Math.max(1, Math.round(z * 2.2 - 1));
+// enemies also scale a little with the player's level, so the game never gets trivial
+const enemyLvl = z => z + Math.floor(((typeof G !== 'undefined' && G.save) ? G.save.level : 1) / 6);
 const zoneOf = (x, y) => 1 + Math.floor(Math.max(0, Math.hypot(x, y) - HOME_R) / 850);
 
 // ---------- RPG layer: attributes, classes, armor, potions ----------

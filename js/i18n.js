@@ -22,6 +22,11 @@ const I18N = {
     '📜 1 quest ready to claim at base': '📜 1 missão pronta na base',
     '📜 {n} quests ready to claim at base': '📜 {n} missões prontas na base',
     '◀ drag to move': '◀ arrasta para mover',
+    '🌀 A portal back to zone {z} opened at base': '🌀 Abriu-se na base um portal de volta à zona {z}',
+    '🌀 Back to zone {z}': '🌀 De volta à zona {z}',
+    '🌀 Portal · zone {z}': '🌀 Portal · zona {z}',
+    '🗺️ World map': '🗺️ Mapa do mundo',
+    '🏠 base · 🌀 portal · 👹 Overlord · ■ outposts (all of them with the Radar) · dashed rings: danger tiers': '🏠 base · 🌀 portal · 👹 Overlord · ■ postos (todos com o Radar) · anéis tracejados: regiões de perigo',
     'drag to aim & shoot ▶': 'arrasta para mirar e disparar ▶',
 
     // ----- toasts & banners -----
@@ -103,13 +108,13 @@ const I18N = {
     'Progress is also saved to the cloud with your Telegram account.': 'O progresso também é guardado na nuvem com a tua conta do Telegram.',
     '📋 Copy code': '📋 Copiar código', '📥 Load pasted code': '📥 Carregar código colado',
     'How to play': 'Como jogar', '▶ Resume': '▶ Continuar', 'Erase save': 'Apagar save',
-    'HELP': `<b>Polegar esquerdo</b> move, <b>polegar direito</b> mira e dispara (ou deixa a mira automática). 💨 esquiva, 🏠 volta à base (custa mais ouro quanto mais longe estás, é interrompido se levares dano), ✨ usa a habilidade da classe (gasta mana), ❤️/🔷 bebem poções de vida e mana.
+    'HELP': `<b>Polegar esquerdo</b> move, <b>polegar direito</b> mira e dispara (ou deixa a mira automática). 💨 esquiva, 🏠 volta à base (custa mais ouro quanto mais longe estás, é interrompido se levares dano) e deixa na base um 🌀 portal de volta ao sítio onde estavas. Toca no minimapa para ver o 🗺️ mapa do mundo. ✨ usa a habilidade da classe (gasta mana), ❤️/🔷 bebem poções de vida e mana.
       Quanto mais longe da base, maior o <b>nível da zona</b>: inimigos mais fortes, melhor saque. O mundo é infinito: a cada 5 zonas há uma nova região de perigo (Arredores → Terras Áridas → Terras Mortas → Inferno → O Abismo…) com novos inimigos.
       Os inimigos largam armas e armaduras (capacete, armadura, calças, botas) com bónus de atributos. Cada nível dá pontos de atributo (🎒) e um ponto de habilidade (⭐).
       A cada 15 minutos o <b>reino</b> fecha e abre um mapa novo (és puxado para a base em segurança). Limpa 3 postos para acordar o 👹 <b>Overlord</b> do reino. Fala com os NPCs na base para <b>missões</b>, 💎 diamantes e baús de vault.
       Limpa os <b>postos</b> vermelhos derrotando o 👑 Senhor da Guerra. O ouro e a sucata que levas só ficam seguros quando <b>voltas à base</b>.
       Morrer acaba a run: perdes o saque que levas, o equipamento solto no inventário e os bónus da run. Itens equipados, poções, nível, habilidades, base e vault ficam.
-      <br><span class="muted">Computador: WASD + rato, Espaço esquiva, F habilidade, H voltar à base, Q/1 poção de vida, R/2 poção de mana, E base, B inventário, K habilidades.</span>`,
+      <br><span class="muted">Computador: WASD + rato, Espaço esquiva, F habilidade, H voltar à base, M mapa, Q/1 poção de vida, R/2 poção de mana, E base, B inventário, K habilidades.</span>`,
     'An open-world roguelike shooter. Pick a class, venture out from your base, survive, loot and level up.': 'Um shooter roguelike de mundo aberto. Escolhe uma classe, sai da base, sobrevive, junta saque e sobe de nível.',
     'Start': 'Começar',
     'Choose your class': 'Escolhe a tua classe', 'Change class': 'Mudar de classe',

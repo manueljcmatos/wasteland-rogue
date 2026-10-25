@@ -44,7 +44,7 @@ const Realm = {
   shift() {
     const S = G.save, p = G.p, wasOut = !G.atHome;
     S.realm = this.make(); S.seed = S.realm.seed; World.reset(S.seed);
-    S.run.cleared = [];
+    S.run.cleared = []; S.run.portal = null;
     G.enemies = []; G.ebullets = []; G.bullets = []; G.pickups = []; G.decals = []; G.active.clear();
     G.recallT = 0;
     if (wasOut) { p.x = 0; p.y = 60; G.atHome = false; } // next update runs enterHome() and banks loot
@@ -75,9 +75,9 @@ const Realm = {
     if (!b || b.killed) return;
     const d2 = U.dist2(b.x, b.y, p.x, p.y);
     if (!b.spawned && d2 < 900 * 900) {
-      const e = makeEnemy('overlord', b.x, b.y, zoneOf(b.x, b.y) + 3, 'overlord');
+      const e = makeEnemy('overlord', b.x, b.y, enemyLvl(zoneOf(b.x, b.y)) + 3, 'overlord');
       e.hp = e.maxHp *= 1.5;
-      for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; makeEnemy(U.pick(['brute', 'spitter', 'grunt', 'runner']), b.x + Math.cos(a) * 150, b.y + Math.sin(a) * 150, zoneOf(b.x, b.y) + 1, 'overlord'); }
+      for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; makeEnemy(U.pick(['brute', 'spitter', 'grunt', 'runner']), b.x + Math.cos(a) * 150, b.y + Math.sin(a) * 150, enemyLvl(zoneOf(b.x, b.y)) + 1, 'overlord'); }
       b.spawned = true;
       UI.banner(t('👹 OVERLORD'), t('Defeat it to collapse the realm and claim its treasure'));
     } else if (b.spawned && d2 > 2600 * 2600) {
@@ -134,7 +134,7 @@ const Quests = {
     }
     q.reward = {
       gold: Math.round(70 * L * q.mult),
-      xp: Math.round(30 * L * q.mult),
+      xp: Math.round(15 * L * q.mult),
       gems: k.id === 'overlord' ? 15 : Math.random() < .3 ? U.randi(3, 8) : 0,
       item: Math.random() < .35 ? randomItem(L, G.st.luck + .5, 1) : null,
     };

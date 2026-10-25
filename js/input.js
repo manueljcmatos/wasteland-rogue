@@ -53,6 +53,7 @@ const Input = {
       if (e.code === 'KeyR' || e.code === 'Digit2') UI.act('mp');
       if (e.code === 'KeyF') UI.act('ability');
       if (e.code === 'KeyH') UI.act('recall');
+      if (e.code === 'KeyM') UI.act(UI.open ? 'close' : 'map');
       if (e.code === 'KeyE' && G.atHome) UI.act(UI.open ? 'close' : 'home');
       if (e.code === 'KeyB' || e.code === 'KeyI') UI.act(UI.open ? 'close' : 'bag');
       if (e.code === 'KeyK') UI.act(UI.open ? 'close' : 'skills');

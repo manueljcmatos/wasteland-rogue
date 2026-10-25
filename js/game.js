@@ -175,6 +175,7 @@ function dash() {
 
 // ---------- return to base (costs more the further out you are) ----------
 const RECALL_TIME = 1.2;
+const PORTAL_POS = [0, 150]; // where the portal back opens inside the base
 function recallCost() { const z = zoneOf(G.p.x, G.p.y); return Math.round(15 * z * (1 + z * .15)); }
 function startRecall() {
   const S = G.save, c = recallCost();
@@ -187,10 +188,29 @@ function finishRecall() {
   const S = G.save, run = S.run, c = recallCost();
   if (run.gold + S.gold < c) { toast(t('Not enough gold'), '#ff8a80'); return; }
   const fromRun = Math.min(run.gold, c); run.gold -= fromRun; S.gold -= c - fromRun;
+  // leave a portal so the player can go back to this exact spot
+  run.portal = { x: G.p.x, y: G.p.y, z: zoneOf(G.p.x, G.p.y), seed: S.seed };
+  G.portalArmed = true;
+  setTimeout(() => toast(t('🌀 A portal back to zone {z} opened at base', { z: run.portal ? run.portal.z : '' }), '#b388ff'), 600);
   burst(G.p.x, G.p.y, '#ffe082', 24, 200);
   G.p.x = 0; G.p.y = 60; G.ebullets = [];
   burst(0, 60, '#ffe082', 24, 200);
   Sfx.play('level');
+}
+
+function updatePortal() {
+  const run = G.save.run, pt = run.portal, p = G.p;
+  if (!pt) return;
+  if (pt.seed !== G.save.seed) { run.portal = null; return; }
+  const d = Math.hypot(p.x - PORTAL_POS[0], p.y - PORTAL_POS[1]);
+  if (d > 70) G.portalArmed = true;
+  else if (d < 26 && G.portalArmed) {
+    burst(p.x, p.y, '#b388ff', 24, 200);
+    p.x = pt.x; p.y = pt.y; run.portal = null; G.portalArmed = false;
+    burst(p.x, p.y, '#b388ff', 24, 200);
+    UI.banner(t('🌀 Back to zone {z}', { z: pt.z }), '');
+    Sfx.play('level');
+  }
 }
 
 function usePotion(p) {
@@ -302,7 +322,7 @@ function gainXp(x) {
     S.xp -= xpNeed(S.level); S.level++; S.sp++; S.ap += ATTR_PER_LEVEL;
     UI.banner(t('LEVEL {n}', { n: S.level }), t('+1 skill point · +{n} attribute points', { n: ATTR_PER_LEVEL }));
     Sfx.play('level');
-    recalc(); G.p.hp = Math.min(G.st.maxHp, G.p.hp + G.st.maxHp * .3);
+    recalc(); G.p.hp = Math.min(G.st.maxHp, G.p.hp + G.st.maxHp * .15);
   }
   run.rxp += x;
   while (run.rxp >= rankNeed(run.rank)) { run.rxp -= rankNeed(run.rank); run.rank++; G.pendingPerks++; }
@@ -357,11 +377,11 @@ function makeEnemy(type, x, y, lvl, outpost = null) {
   const d = ENEMY_TYPES[type];
   const elite = !outpost && type !== 'boss' && lvl >= 2 && Math.random() < tierOf(lvl).elite;
   // linear + gentle exponential growth so deeper zones always out-scale you eventually
-  const hpMul = (1 + .3 * (lvl - 1)) * Math.pow(1.03, lvl - 1) * (elite ? 3 : 1);
+  const hpMul = (1 + .4 * (lvl - 1)) * Math.pow(1.05, lvl - 1) * (elite ? 3 : 1);
   const e = {
     type, def: d, x, y, lvl, elite, outpost, boss: type === 'boss' || type === 'overlord',
     r: d.r * (elite ? 1.3 : 1), hp: d.hp * hpMul, maxHp: d.hp * hpMul,
-    speed: d.speed * U.rand(.9, 1.1) * (1 + .02 * Math.min(lvl, 15)), dmg: d.dmg * (1 + .14 * (lvl - 1)) * Math.pow(1.02, lvl - 1) * (elite ? 1.5 : 1), chargeT: 0, windT: 0, cdx: 0, cdy: 0,
+    speed: d.speed * U.rand(.9, 1.1) * (1.05 + .025 * Math.min(lvl, 16)), dmg: d.dmg * (1 + .2 * (lvl - 1)) * Math.pow(1.035, lvl - 1) * (elite ? 1.6 : 1), chargeT: 0, windT: 0, cdx: 0, cdy: 0,
     atkCd: U.rand(.5, 1.5), touchCd: 0, hitT: 0, kx: 0, ky: 0, strafe: Math.random() < .5 ? 1 : -1, hx: x, hy: y, dead: false,
   };
   G.enemies.push(e);
@@ -371,10 +391,10 @@ function makeEnemy(type, x, y, lvl, outpost = null) {
 function spawnEnemies(dt) {
   G.spawnT -= dt;
   if (G.spawnT > 0) return;
-  G.spawnT = .35;
+  G.spawnT = .28;
   const p = G.p;
   if (Math.hypot(p.x, p.y) < HOME_R + 150) return;
-  const cap = Math.min(55, 7 + G.lastZone * 3);
+  const cap = Math.min(60, 10 + G.lastZone * 4);
   let normal = 0; for (const e of G.enemies) if (!e.outpost) normal++;
   if (normal >= cap) return;
   const rad = Math.hypot(G.w, G.h) / 2 / G.zoom + 60;
@@ -382,7 +402,7 @@ function spawnEnemies(dt) {
     const a = Math.random() * 6.283, d = rad + U.rand(0, 180);
     const x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
     if (Math.hypot(x, y) < HOME_R + 80 || World.blocked(x, y)) continue;
-    const lvl = zoneOf(x, y);
+    const lvl = enemyLvl(zoneOf(x, y));
     const types = Object.keys(ENEMY_TYPES).filter(k => ENEMY_TYPES[k].minLvl <= lvl);
     const type = U.weighted(types, k => ENEMY_TYPES[k].w);
     // occasionally spawn a small pack
@@ -399,7 +419,7 @@ function updateOutposts(dt) {
   const p = G.p, run = G.save.run;
   for (const o of World.outpostsNear(p.x, p.y, 800)) {
     if (run.cleared.includes(o.id) || G.active.has(o.id)) continue;
-    const lvl = zoneOf(o.x, o.y) + 1;
+    const lvl = enemyLvl(zoneOf(o.x, o.y)) + 1;
     const boss = makeEnemy('boss', o.x, o.y, lvl, o.id);
     boss.hp = boss.maxHp *= 1 + .1 * lvl;
     const guards = Math.min(9, 4 + Math.floor(lvl / 2));
@@ -498,7 +518,7 @@ function killEnemy(e, exploded) {
   Sfx.play('kill');
   run.kills++; G.save.stats.kills++;
   Quests.progress('kill'); Quests.progress('killType', 1, e.type); if (e.elite) Quests.progress('elite');
-  gainXp(Math.round(e.def.xp * (1 + .2 * (e.lvl - 1)) * (e.elite ? 3 : 1)));
+  gainXp(Math.round(e.def.xp * (1 + .12 * (e.lvl - 1)) * (e.elite ? 3 : 1)));
   dropLoot(e);
   if (e.type === 'overlord') Realm.onBossKilled(e);
   else if (e.boss && e.outpost) {
@@ -518,7 +538,7 @@ function dropLoot(e) {
   const coins = Math.min(6, Math.max(1, Math.ceil(g / 5)));
   for (let i = 0; i < coins; i++) addPickup('gold', e.x, e.y, Math.max(1, Math.round(g / coins)));
   if (Math.random() < (e.elite || e.boss ? 1 : .3)) addPickup('scrap', e.x, e.y, Math.max(1, Math.round(U.randi(1, 3) * (1 + .15 * (lv - 1)) * st.scrapMul)));
-  if (Math.random() < (e.elite ? .25 : .03)) addPickup('potion', e.x, e.y, Math.random() < .55 ? 'hp' : 'mp');
+  if (Math.random() < (e.elite ? .2 : .02)) addPickup('potion', e.x, e.y, Math.random() < .55 ? 'hp' : 'mp');
   const wc = e.boss ? 1 : e.elite ? .35 : .03;
   if (Math.random() < wc) addPickup('weapon', e.x, e.y, 0, randomItem(lv, st.luck + Math.min(1.5, lv * .04) + (e.boss ? .8 : e.elite ? .3 : 0), e.boss ? 2 : 0));
 }
@@ -677,6 +697,7 @@ function update(dt) {
 
   spawnEnemies(dt);
   updateOutposts(dt);
+  updatePortal();
   Realm.update(dt);
   G.npc = nearNpc();
   updateEnemies(dt);
@@ -716,7 +737,7 @@ function render() {
 
   const vis = (x, y, r) => x + r > cx - hw && x - r < cx + hw && y + r > cy - hh && y - r < cy + hh;
 
-  if (vis(0, 0, HOME_R + 40)) { drawHome(ctx); for (const n of NPCS) drawNpc(ctx, n); }
+  if (vis(0, 0, HOME_R + 40)) { drawHome(ctx); for (const n of NPCS) drawNpc(ctx, n); if (G.save.run.portal) drawPortal(ctx, PORTAL_POS[0], PORTAL_POS[1], t('🌀 Portal · zone {z}', { z: G.save.run.portal.z })); }
   for (const o of World.outpostsNear(cx, cy, Math.max(hw, hh) + 300)) drawOutpost(ctx, o);
   drawDecals(ctx);
 
@@ -844,6 +865,8 @@ function drawMinimap() {
     m.fillStyle = G.save.run.cleared.includes(o.id) ? '#9e9e9e' : '#ff2f6b';
     m.fillRect(ox - 3, oy - 3, 6, 6);
   }
+  const PTm = G.save.run.portal;
+  if (PTm) { const [px, py] = toM(PTm.x, PTm.y); m.strokeStyle = '#b388ff'; m.lineWidth = 2; m.beginPath(); m.arc(U.clamp(px, 4, S - 4), U.clamp(py, 4, S - 4), 4, 0, 6.283); m.stroke(); }
   const RBm = G.save.realm.boss;
   if (RBm && !RBm.killed) { const [bx, by] = toM(RBm.x, RBm.y); m.fillStyle = '#b388ff'; m.beginPath(); m.arc(U.clamp(bx, 4, S - 4), U.clamp(by, 4, S - 4), 4, 0, 6.283); m.fill(); }
   m.fillStyle = '#ff5252';
@@ -852,3 +875,44 @@ function drawMinimap() {
 }
 
 addEventListener('load', init);
+
+// full-screen world map (tap the minimap)
+function drawWorldMap(cv) {
+  const m = cv.getContext('2d'), S = cv.width, p = G.p, run = G.save.run, RB = G.save.realm.boss, radar = G.save.buildings.radar;
+  let R = Math.max(3500, Math.hypot(p.x, p.y) + 1200);
+  if (run.portal) R = Math.max(R, Math.hypot(run.portal.x, run.portal.y) + 800);
+  if (RB && !RB.killed) R = Math.max(R, Math.hypot(RB.x, RB.y) + 800);
+  const sc = S / 2 / R, cells = 80, cs = S / cells;
+  for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) {
+    const c = BIOMES[World.biomeAt(((i + .5) * cs - S / 2) / sc, ((j + .5) * cs - S / 2) / sc)].c;
+    m.fillStyle = `rgb(${c[0] * .75 | 0},${c[1] * .75 | 0},${c[2] * .75 | 0})`;
+    m.fillRect(i * cs, j * cs, cs + 1, cs + 1);
+  }
+  const toM = (x, y) => [S / 2 + x * sc, S / 2 + y * sc];
+  // danger tier rings (every 5 zones)
+  m.font = '700 11px system-ui'; m.textAlign = 'center'; m.textBaseline = 'middle';
+  for (let z = 5; ; z += 5) {
+    const r = (HOME_R + 850 * (z - 1)) * sc;
+    if (r > S * .72) break;
+    const tier = tierOf(z);
+    m.setLineDash([5, 5]); m.strokeStyle = tier.color; m.globalAlpha = .7; m.lineWidth = 1.5;
+    m.beginPath(); m.arc(S / 2, S / 2, r, 0, 6.283); m.stroke(); m.setLineDash([]);
+    m.globalAlpha = 1; m.fillStyle = tier.color; m.fillText(`${tier.name} (${z})`, S / 2, S / 2 - r + 9);
+  }
+  // outposts: all with radar, otherwise only the ones you found
+  for (const o of World.outpostsNear(0, 0, R)) {
+    const cleared = run.cleared.includes(o.id);
+    if (!radar && !cleared && !G.active.has(o.id)) continue;
+    const [x, y] = toM(o.x, o.y);
+    m.fillStyle = cleared ? '#9e9e9e' : '#ff2f6b'; m.fillRect(x - 3.5, y - 3.5, 7, 7);
+  }
+  const mark = (x, y, txt, size = 16) => { m.font = `${size}px system-ui`; m.fillText(txt, x, y); };
+  let [hx, hy] = toM(0, 0); mark(hx, hy, '🏠', 18);
+  if (run.portal) { const [x, y] = toM(run.portal.x, run.portal.y); mark(x, y, '🌀'); }
+  if (RB && !RB.killed) { const [x, y] = toM(RB.x, RB.y); mark(x, y, '👹', 20); }
+  const [px, py] = toM(p.x, p.y);
+  m.save(); m.translate(px, py); m.rotate(p.ang);
+  m.fillStyle = '#fff'; m.strokeStyle = '#000'; m.lineWidth = 2;
+  m.beginPath(); m.moveTo(9, 0); m.lineTo(-6, -6); m.lineTo(-3, 0); m.lineTo(-6, 6); m.closePath(); m.stroke(); m.fill();
+  m.restore();
+}

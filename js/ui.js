@@ -39,6 +39,7 @@ const UI = {
       $('panel').scrollTop = sc;
     }
     if (this.open === 'menu') $('saveCode').value = Save.exportCode(G.save);
+    if (this.open === 'map') this.drawMap();
   },
   head(title) { return `<h2><span>${title}</span><button class="x" data-act="close">✕</button></h2>`; },
   wallet() {
@@ -142,6 +143,7 @@ const UI = {
         if (G.npc) return this.npc(G.npc.id);
         this.show('home', this.homeHtml()); return;
       case 'recall': startRecall(); return;
+      case 'map': this.show('map', this.mapHtml()); this.drawMap(); return;
       case 'quests': this.show('quests', this.questsHtml()); return;
       case 'gemshop': this.show('gems', this.gemsHtml()); return;
       case 'claim': Quests.claim(d.id); break;
@@ -408,13 +410,13 @@ const UI = {
 
   helpText() {
     if (I18N.lang === 'pt') return t('HELP');
-    return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes, 🏠 returns you to base (costs more gold the further out you are, interrupted if you get hit), ✨ uses your class ability (costs mana), ❤️/🔷 drink health and mana potions.
+    return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes, 🏠 returns you to base (costs more gold the further out you are, interrupted if you get hit) and leaves a 🌀 portal at base that takes you back to where you were. Tap the minimap for the 🗺️ world map. ✨ uses your class ability (costs mana), ❤️/🔷 drink health and mana potions.
       The further you roam from base, the higher the <b>zone level</b>: tougher enemies, better loot. The world is endless: every 5 zones is a new danger tier (Outskirts → Badlands → Deadlands → Inferno → The Abyss…) with new enemy types.
       Enemies drop weapons and armor (helmet, armor, pants, boots) with bonus attributes. Each level gives attribute points (🎒) and a skill point (⭐).
       Every 15 minutes the <b>realm</b> closes and a new map opens (you are pulled back to base safely). Clear 3 outposts to awaken the realm's 👹 <b>Overlord</b>. Talk to NPCs at base for <b>quests</b>, 💎 gems and vault chests.
       Clear red <b>outposts</b> by killing their 👑 Warlord. Gold and scrap you carry are only safe once you <b>return to base</b>.
       Dying ends the run: you lose carried loot, the gear in your bag and run perks. Equipped items, potions, level, skills, base and stash remain.
-      <br><span class="muted">Desktop: WASD + mouse, Space dash, F ability, H return to base, Q/1 health potion, R/2 mana potion, E base, B bag, K skills.</span>`;
+      <br><span class="muted">Desktop: WASD + mouse, Space dash, F ability, H return to base, M map, Q/1 health potion, R/2 mana potion, E base, B bag, K skills.</span>`;
   },
 
   intro() {
@@ -535,6 +537,15 @@ const UI = {
           `<button class="btn ${can ? 'good' : ''}" data-act="upg" data-uid="${w.uid}" ${can ? '' : 'disabled'}>${t('Upgrade 🪙{g} ⚙️{s}', { g: c.gold, s: c.scrap })}</button>`) + sal);
       }).join('')}</div>`;
   },
+
+  // ---------- world map ----------
+  mapHtml() {
+    const sz = Math.min(innerWidth - 56, innerHeight - 190, 560);
+    return `${this.head(t('🗺️ World map'))}
+      <canvas id="bigmap" width="${sz * 2}" height="${sz * 2}" style="width:${sz}px;height:${sz}px;display:block;margin:0 auto;border-radius:12px"></canvas>
+      <p class="muted">${t('🏠 base · 🌀 portal · 👹 Overlord · ■ outposts (all of them with the Radar) · dashed rings: danger tiers')}</p>`;
+  },
+  drawMap() { const cv = $('bigmap'); if (cv) drawWorldMap(cv); },
 
   // ---------- NPCs ----------
   npc(id) {
