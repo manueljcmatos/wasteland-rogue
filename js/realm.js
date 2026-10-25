@@ -25,10 +25,10 @@ const Realm = {
     if (R.closing >= 0) {
       const before = Math.ceil(R.closing);
       R.closing -= dt;
-      if (Math.ceil(R.closing) !== before && [30, 10, 5].includes(Math.ceil(R.closing)) && !G.atHome) toast(`🌀 Realm closing in ${Math.ceil(R.closing)}s`, '#b388ff');
+      if (Math.ceil(R.closing) !== before && [30, 10, 5].includes(Math.ceil(R.closing)) && !G.atHome) toast(t('🌀 Realm closing in {s}s', { s: Math.ceil(R.closing) }), '#b388ff');
       if (R.closing <= 0) this.shift();
     } else if (REALM_LEN - R.time <= REALM_WARN) {
-      this.startClosing(REALM_WARN, 'The realm is collapsing');
+      this.startClosing(REALM_WARN, t('The realm is collapsing'));
     }
     this.updateBoss();
   },
@@ -37,7 +37,7 @@ const Realm = {
     const R = G.save.realm;
     if (R.closing >= 0 && R.closing <= sec) return;
     R.closing = sec;
-    UI.banner('🌀 REALM CLOSING', `${why} · ${sec}s · you will be pulled back to base`);
+    UI.banner(t('🌀 REALM CLOSING'), t('{why} · {s}s · you will be pulled back to base', { why, s: sec }));
   },
 
   // the old realm vanishes; a new one opens. Being pulled out is not death: carried loot is banked.
@@ -48,7 +48,7 @@ const Realm = {
     G.enemies = []; G.ebullets = []; G.bullets = []; G.pickups = []; G.decals = []; G.active.clear();
     G.recallT = 0;
     if (wasOut) { p.x = 0; p.y = 60; G.atHome = false; } // next update runs enterHome() and banks loot
-    UI.banner(`🌀 ${S.realm.name.toUpperCase()}`, 'A new realm has opened');
+    UI.banner(`🌀 ${S.realm.name.toUpperCase()}`, t('A new realm has opened'));
     Sfx.play('level');
     persist();
   },
@@ -57,7 +57,7 @@ const Realm = {
     const R = G.save.realm;
     R.cleared++;
     if (R.cleared === 3 && !R.boss) this.spawnBoss();
-    else if (R.cleared < 3) toast(`Outposts cleared in this realm: ${R.cleared}/3`, '#b388ff');
+    else if (R.cleared < 3) toast(t('Outposts cleared in this realm: {n}/3', { n: R.cleared }), '#b388ff');
   },
 
   spawnBoss() {
@@ -66,7 +66,7 @@ const Realm = {
     let x = Math.cos(a) * d, y = Math.sin(a) * d;
     for (let i = 0; i < 20 && World.blocked(x, y); i++) { x += 40; y += 25; }
     R.boss = { x, y, spawned: false, killed: false };
-    UI.banner('👹 THE OVERLORD AWAKENS', `Zone ${zoneOf(x, y)} · follow the purple arrow`);
+    UI.banner(t('👹 THE OVERLORD AWAKENS'), t('Zone {z} · follow the purple arrow', { z: zoneOf(x, y) }));
     Sfx.play('boom');
   },
 
@@ -79,7 +79,7 @@ const Realm = {
       e.hp = e.maxHp *= 1.5;
       for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; makeEnemy(U.pick(['brute', 'spitter', 'grunt', 'runner']), b.x + Math.cos(a) * 150, b.y + Math.sin(a) * 150, zoneOf(b.x, b.y) + 1, 'overlord'); }
       b.spawned = true;
-      UI.banner('👹 OVERLORD', 'Defeat it to collapse the realm and claim its treasure');
+      UI.banner(t('👹 OVERLORD'), t('Defeat it to collapse the realm and claim its treasure'));
     } else if (b.spawned && d2 > 2600 * 2600) {
       // walked away: the Overlord waits at its lair at full health
       G.enemies = G.enemies.filter(e => e.outpost !== 'overlord');
@@ -92,14 +92,14 @@ const Realm = {
     R.boss.killed = true; S.stats.bosses++;
     for (const g of G.enemies) if (g.outpost === 'overlord') g.outpost = null;
     const gems = U.randi(8, 15);
-    S.gems += gems;
-    UI.banner('👹 OVERLORD SLAIN', `+💎${gems} · the realm will collapse soon`);
+    Net.earn(gems, 'overlord');
+    UI.banner(t('👹 OVERLORD SLAIN'), t('+💎{g} · the realm will collapse soon', { g: gems }));
     for (let i = 0; i < 14; i++) addPickup('gold', e.x, e.y, Math.round(10 * e.lvl * G.st.goldMul));
     addPickup('scrap', e.x, e.y, Math.round(20 * e.lvl * G.st.scrapMul));
     for (let i = 0; i < 2; i++) addPickup('weapon', e.x, e.y, 0, randomItem(e.lvl, G.st.luck + 1.5, 3));
     addPickup('potion', e.x, e.y, 'hp'); addPickup('potion', e.x, e.y, 'mp');
     Quests.progress('overlord');
-    this.startClosing(90, 'The Overlord has fallen');
+    this.startClosing(90, t('The Overlord has fallen'));
   },
 };
 
@@ -150,13 +150,13 @@ const Quests = {
   },
   text(q) {
     switch (q.type) {
-      case 'kill': return `Defeat ${q.target} enemies`;
-      case 'killType': return `Defeat ${q.target} ${ENEMY_TYPES[q.sub].name}s`;
-      case 'elite': return `Defeat ${q.target} elite enemies`;
-      case 'outpost': return `Clear ${q.target} outpost${q.target > 1 ? 's' : ''}`;
-      case 'zone': return `Reach zone ${q.target}`;
-      case 'gold': return `Collect ${q.target} gold`;
-      case 'overlord': return 'Slay a realm Overlord';
+      case 'kill': return t('Defeat {n} enemies', { n: q.target });
+      case 'killType': return t('Defeat {n} {e}', { n: q.target, e: t(ENEMY_TYPES[q.sub].name + 's') });
+      case 'elite': return t('Defeat {n} elite enemies', { n: q.target });
+      case 'outpost': return q.target > 1 ? t('Clear {n} outposts', { n: q.target }) : t('Clear 1 outpost');
+      case 'zone': return t('Reach zone {n}', { n: q.target });
+      case 'gold': return t('Collect {n} gold', { n: q.target });
+      case 'overlord': return t('Slay a realm Overlord');
     }
     return '?';
   },
@@ -165,17 +165,17 @@ const Quests = {
     for (const q of G.save.quests) {
       if (q.done || q.type !== type || (q.sub && q.sub !== sub)) continue;
       q.prog = type === 'zone' ? Math.max(q.prog, amount) : Math.min(q.target, q.prog + amount);
-      if (q.prog >= q.target) { q.prog = q.target; q.done = true; toast(`📜 Quest complete: ${this.text(q)}. Claim it at base`, '#ffe082'); Sfx.play('level'); }
+      if (q.prog >= q.target) { q.prog = q.target; q.done = true; toast(t('📜 Quest complete: {q}. Claim it at base', { q: this.text(q) }), '#ffe082'); Sfx.play('level'); }
     }
   },
   claim(id) {
     const S = G.save, i = S.quests.findIndex(q => q.id === id), q = S.quests[i];
     if (!q || !q.done) return;
     const r = q.reward;
-    S.gold += r.gold; S.gems += r.gems; gainXp(r.xp);
+    S.gold += r.gold; if (r.gems) Net.earn(r.gems, 'quest'); gainXp(r.xp);
     if (r.item && !invAdd(r.item)) S.stash.push(r.item);
     S.quests.splice(i, 1); this.ensure();
-    toast(`Reward: 🪙${U.fmt(r.gold)} ✨${r.xp} XP${r.gems ? ` 💎${r.gems}` : ''}${r.item ? ' + item' : ''}`, '#ffe082');
+    toast(t('Reward: 🪙{g} ✨{x} XP', { g: U.fmt(r.gold), x: r.xp }) + (r.gems ? ` 💎${r.gems}` : '') + (r.item ? t(' + item') : ''), '#ffe082');
     Sfx.play('buy');
   },
   reroll(id) {

@@ -81,10 +81,13 @@ function persist() {
   if (G.noSave) return; // a restore/erase is reloading the page
   const r = G.save.run;
   r.x = G.p.x; r.y = G.p.y; r.hp = G.p.hp; r.mp = G.p.mp;
+  G.save.savedAt = Date.now();
   Save.write(G.save);
+  Net.pushSave();
 }
 
-function init() {
+async function init() {
+  await Net.boot();
   G.canvas = document.getElementById('game'); G.ctx = G.canvas.getContext('2d');
   G.mm = document.getElementById('minimap'); G.mmx = G.mm.getContext('2d');
   resize(); addEventListener('resize', resize);
@@ -106,7 +109,7 @@ function init() {
   if (!G.save.seenIntro) UI.intro();
   else if (!G.save.cls) UI.classPick(true);
   addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (!UI.open) UI.act('menu'); } });
-  addEventListener('pagehide', persist);
+  addEventListener('pagehide', () => { persist(); Net.pushSave(true); });
   addEventListener('beforeunload', persist);
   let last = performance.now();
   const loop = now => {
@@ -118,6 +121,7 @@ function init() {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+  Net.connect();
 }
 
 // ---------- helpers ----------
@@ -175,13 +179,13 @@ function recallCost() { const z = zoneOf(G.p.x, G.p.y); return Math.round(15 * z
 function startRecall() {
   const S = G.save, c = recallCost();
   if (G.atHome || G.paused || G.recallT > 0) return;
-  if (S.run.gold + S.gold < c) { toast(`Need 🪙${U.fmt(c)} to return to base`, '#ff8a80'); return; }
+  if (S.run.gold + S.gold < c) { toast(t('Need 🪙{c} to return to base', { c: U.fmt(c) }), '#ff8a80'); return; }
   G.recallT = RECALL_TIME;
-  toast(`🏠 Returning to base… (🪙${U.fmt(c)})`, '#ffe082');
+  toast(t('🏠 Returning to base… (🪙{c})', { c: U.fmt(c) }), '#ffe082');
 }
 function finishRecall() {
   const S = G.save, run = S.run, c = recallCost();
-  if (run.gold + S.gold < c) { toast('Not enough gold', '#ff8a80'); return; }
+  if (run.gold + S.gold < c) { toast(t('Not enough gold'), '#ff8a80'); return; }
   const fromRun = Math.min(run.gold, c); run.gold -= fromRun; S.gold -= c - fromRun;
   burst(G.p.x, G.p.y, '#ffe082', 24, 200);
   G.p.x = 0; G.p.y = 60; G.ebullets = [];
@@ -193,8 +197,8 @@ function usePotion(p) {
   const S = G.save, st = G.st;
   if (G.potCd > 0 || G.paused) return;
   const i = S.inv.findIndex(s => s && s.kind === 'potion' && s.p === p);
-  if (i < 0) { toast(`No ${POTIONS[p].name}s`); return; }
-  if (p === 'hp' ? G.p.hp >= st.maxHp : G.p.mp >= st.maxMp) { toast(p === 'hp' ? 'Already at full health' : 'Mana already full'); return; }
+  if (i < 0) { toast(t('No {p}s', { p: t(POTIONS[p].name) })); return; }
+  if (p === 'hp' ? G.p.hp >= st.maxHp : G.p.mp >= st.maxMp) { toast(t(p === 'hp' ? 'Already at full health' : 'Mana already full')); return; }
   if (--S.inv[i].n <= 0) S.inv[i] = null;
   G.potCd = .8;
   if (p === 'hp') { const h = st.maxHp * .5; G.p.hp = Math.min(st.maxHp, G.p.hp + h); addText(G.p.x, G.p.y - 30, '+' + Math.round(h), '#66ff88', 18); burst(G.p.x, G.p.y, '#ef5350', 12, 100); }
@@ -206,7 +210,7 @@ function usePotion(p) {
 function useAbility() {
   const S = G.save, p = G.p, st = G.st, ab = (CLASS_BY_ID[S.cls] || CLASSES[0]).ability;
   if (G.paused || G.abCd > 0) return;
-  if (p.mp < ab.mana) { toast('Not enough mana 🔷', '#64b5f6'); return; }
+  if (p.mp < ab.mana) { toast(t('Not enough mana 🔷'), '#64b5f6'); return; }
   const pow = st.abPower, tgt = nearestEnemy(p.x, p.y, 520);
   const aim = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : p.ang;
   p.mp -= ab.mana; G.abCd = ab.cd;
@@ -227,7 +231,7 @@ function useAbility() {
         damageEnemy(best, 32 * pow * (1 - i * .08), false, best.x - from.x, best.y - from.y);
         from = best; range = 280;
       }
-      if (!hit.length) { p.mp += ab.mana; G.abCd = 0; toast('No target in range'); return; }
+      if (!hit.length) { p.mp += ab.mana; G.abCd = 0; toast(t('No target in range')); return; }
       G.bolts.push({ pts, life: .25 });
       break;
     }
@@ -283,7 +287,7 @@ function hurtPlayer(dmg, src) {
   const p = G.p;
   if (p.inv > 0 || p.dashT > 0 || G.atHome) return;
   dmg *= 1 - G.st.dr;
-  if (G.recallT > 0) { G.recallT = 0; toast('Return interrupted!', '#ff8a80'); }
+  if (G.recallT > 0) { G.recallT = 0; toast(t('Return interrupted!'), '#ff8a80'); }
   p.hp -= dmg; p.inv = .22; G.hurtFlash = .35; G.shake = Math.min(.4, G.shake + .15);
   addText(p.x, p.y - 26, '-' + Math.round(dmg), '#ff5252', 16);
   Sfx.play('hurt');
@@ -296,7 +300,7 @@ function gainXp(x) {
   S.xp += x;
   while (S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level); S.level++; S.sp++; S.ap += ATTR_PER_LEVEL;
-    UI.banner('LEVEL ' + S.level, `+1 skill point · +${ATTR_PER_LEVEL} attribute points`);
+    UI.banner(t('LEVEL {n}', { n: S.level }), t('+1 skill point · +{n} attribute points', { n: ATTR_PER_LEVEL }));
     Sfx.play('level');
     recalc(); G.p.hp = Math.min(G.st.maxHp, G.p.hp + G.st.maxHp * .3);
   }
@@ -310,7 +314,7 @@ function enterHome() {
   const run = G.save.run;
   if (run.gold || run.scrap) {
     G.save.gold += run.gold; G.save.scrap += run.scrap;
-    toast(`Banked 🪙${U.fmt(run.gold)}  ⚙️${U.fmt(run.scrap)}`, '#ffe082');
+    toast(t('Banked 🪙{g}  ⚙️{s}', { g: U.fmt(run.gold), s: U.fmt(run.scrap) }), '#ffe082');
     run.gold = 0; run.scrap = 0;
     Sfx.play('buy');
   }
@@ -405,7 +409,7 @@ function updateOutposts(dt) {
       makeEnemy(U.weighted(types, k => ENEMY_TYPES[k].w), o.x + Math.cos(a) * 120, o.y + Math.sin(a) * 120, lvl, o.id);
     }
     G.active.set(o.id, o);
-    UI.banner('⚠️ OUTPOST', `Defeat the Warlord · Zone ${lvl}`);
+    UI.banner(t('⚠️ OUTPOST'), t('Defeat the Warlord · Zone {z}', { z: lvl }));
   }
   // reset garrisons the player walked away from
   for (const [id, o] of G.active) {
@@ -501,7 +505,7 @@ function killEnemy(e, exploded) {
     run.cleared.push(e.outpost); Quests.progress('outpost'); Realm.onOutpostCleared(); G.save.stats.bosses++;
     for (const g of G.enemies) if (g.outpost === e.outpost && !g.dead) g.outpost = null; // guards go feral
     G.active.delete(e.outpost);
-    UI.banner('OUTPOST CLEARED', 'Loot dropped!');
+    UI.banner(t('OUTPOST CLEARED'), t('Loot dropped!'));
     for (let i = 0; i < 8; i++) addPickup('gold', e.x, e.y, Math.round(6 * e.lvl * G.st.goldMul));
     addPickup('scrap', e.x, e.y, Math.round(8 * e.lvl * G.st.scrapMul));
     addPickup('potion', e.x, e.y, 'hp'); addPickup('potion', e.x, e.y, 'mp');
@@ -589,15 +593,15 @@ function updatePickups(dt) {
       if (k.kind === 'gold') { run.gold += k.v; S.stats.goldEarned += k.v; Quests.progress('gold', k.v); k.dead = true; Sfx.play('pick'); }
       else if (k.kind === 'scrap') { run.scrap += k.v; k.dead = true; addText(k.x, k.y - 10, '+' + k.v + ' ⚙️', '#cfd8dc', 12); Sfx.play('pick'); }
       else if (k.kind === 'potion') {
-        if (invAdd(makePotion(k.v))) { k.dead = true; toast(k.v === 'hp' ? '❤️ Health Potion' : '🔷 Mana Potion', POTIONS[k.v].color); Sfx.play('pick'); }
-        else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast('🎒 Inventory full!', '#ff8a80'); }
+        if (invAdd(makePotion(k.v))) { k.dead = true; toast(t(k.v === 'hp' ? '❤️ Health Potion' : '🔷 Mana Potion'), POTIONS[k.v].color); Sfx.play('pick'); }
+        else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast(t('🎒 Inventory full!'), '#ff8a80'); }
       } else if (k.kind === 'weapon') {
         if (invAdd(k.item)) {
           k.dead = true; Sfx.play('pick');
           const it = k.item, cur = isWeapon(it) ? null : S.gear[it.slot];
           const better = isWeapon(it) ? weaponDps(it) > weaponDps(S.equipped) : !cur || armorValue(it) > armorValue(cur);
-          toast(`${itemName(it)} (Lv${it.level})${better ? ' ⬆️' : ''}`, RARITIES[it.rarity].color);
-        } else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast('🎒 Inventory full! Equip, drop or bank items at base.', '#ff8a80'); }
+          toast(`${itemName(it)} (${t('Lv{n}', { n: it.level })})${better ? ' ⬆️' : ''}`, RARITIES[it.rarity].color);
+        } else if (G.t > G.fullToastT) { G.fullToastT = G.t + 3; toast(t('🎒 Inventory full! Equip, drop or bank items at base.'), '#ff8a80'); }
       }
     }
     if (k.t > k.life) k.dead = true;
@@ -637,7 +641,7 @@ function update(dt) {
   // home zone
   const atHome = Math.hypot(p.x, p.y) < HOME_R;
   if (atHome && !G.atHome) { G.atHome = true; enterHome(); }
-  else if (!atHome && G.atHome) { G.atHome = false; UI.banner('Leaving base', 'Danger rises with distance'); }
+  else if (!atHome && G.atHome) { G.atHome = false; UI.banner(t('Leaving base'), t('Danger rises with distance')); }
 
   // regen
   let regen = st.regen;
@@ -649,10 +653,10 @@ function update(dt) {
   const z = zoneOf(p.x, p.y);
   if (z !== G.lastZone) {
     if (z > G.lastZone && !atHome) {
-      const t = tierOf(z), newTier = tierOf(G.lastZone).name !== t.name;
-      if (newTier) UI.banner(`<span style="color:${t.color}">${t.name.toUpperCase()}</span>`, `Zone ${z} · enemies grow stronger · rec. level ${recLevel(z)}`);
-      else UI.banner('ZONE ' + z, `${BIOMES[World.biomeAt(p.x, p.y)].name} · rec. level ${recLevel(z)}`);
-      if (z > S.stats.best) toast(`🏆 New record: Zone ${z}`, '#ffe082');
+      const tier = tierOf(z), newTier = tierOf(G.lastZone).name !== tier.name;
+      if (newTier) UI.banner(`<span style="color:${tier.color}">${tier.name.toUpperCase()}</span>`, t('Zone {z} · enemies grow stronger · rec. level {l}', { z, l: recLevel(z) }));
+      else UI.banner(t('ZONE {z}', { z }), t('{b} · rec. level {l}', { b: t(BIOMES[World.biomeAt(p.x, p.y)].name), l: recLevel(z) }));
+      if (z > S.stats.best) toast(t('🏆 New record: Zone {z}', { z }), '#ffe082');
     }
     G.lastZone = z;
     if (z > run.maxZone) run.maxZone = z;
@@ -812,7 +816,7 @@ function render() {
   }
   if (Input.touch && !Input.left && !Input.right && !UI.open && G.t < 12) {
     ctx.globalAlpha = .5; ctx.fillStyle = '#fff'; ctx.font = '600 13px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('◀ drag to move', W * .25, H - 60); ctx.fillText('drag to aim & shoot ▶', W * .75, H - 60);
+    ctx.fillText(t('◀ drag to move'), W * .25, H - 60); ctx.fillText(t('drag to aim & shoot ▶'), W * .75, H - 60);
     ctx.globalAlpha = 1;
   }
 

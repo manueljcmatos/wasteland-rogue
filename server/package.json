@@ -1,0 +1,12 @@
+{
+  "name": "wasteland-rogue-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram Mini App backend: auth, Telegram Stars payments, gems ledger, cloud saves",
+  "main": "server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

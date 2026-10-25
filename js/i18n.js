@@ -1,0 +1,237 @@
+'use strict';
+// Translations. English text is the key; t('Zone {z}', { z: 3 }) fills {placeholders}.
+// Missing Portuguese entries fall back to English.
+const I18N = {
+  lang: 'en',
+  init() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('wasteland_rogue_v1') || 'null'); } catch (e) { /* ignore */ }
+    const tgLang = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user && Telegram.WebApp.initDataUnsafe.user.language_code;
+    const pref = (saved && saved.settings && saved.settings.lang) || tgLang || navigator.language || 'en';
+    this.lang = String(pref).toLowerCase().startsWith('pt') ? 'pt' : 'en';
+    document.documentElement.lang = this.lang;
+  },
+  pt: {
+    // ----- HUD -----
+    'Level {n}': 'Nível {n}',
+    'Rank {n} · next perk': 'Rank {n} · próximo bónus',
+    '🏠 Safe base': '🏠 Base segura',
+    'Zone {z} · {t}': 'Zona {z} · {t}',
+    '{i} Talk': '{i} Falar',
+    '🏠 Base': '🏠 Base',
+    '📜 1 quest ready to claim at base': '📜 1 missão pronta na base',
+    '📜 {n} quests ready to claim at base': '📜 {n} missões prontas na base',
+    '◀ drag to move': '◀ arrasta para mover',
+    'drag to aim & shoot ▶': 'arrasta para mirar e disparar ▶',
+
+    // ----- toasts & banners -----
+    'Need 🪙{c} to return to base': 'Precisas de 🪙{c} para voltar à base',
+    '🏠 Returning to base… (🪙{c})': '🏠 A voltar à base… (🪙{c})',
+    'Not enough gold': 'Ouro insuficiente',
+    'No {p}s': 'Sem {p}s',
+    'Already at full health': 'Vida já está cheia',
+    'Mana already full': 'Mana já está cheia',
+    'Not enough mana 🔷': 'Mana insuficiente 🔷',
+    'No target in range': 'Nenhum alvo ao alcance',
+    'Return interrupted!': 'Retorno interrompido!',
+    'LEVEL {n}': 'NÍVEL {n}',
+    '+1 skill point · +{n} attribute points': '+1 ponto de habilidade · +{n} pontos de atributo',
+    'Banked 🪙{g}  ⚙️{s}': 'Guardado no banco 🪙{g}  ⚙️{s}',
+    '⚠️ OUTPOST': '⚠️ POSTO INIMIGO',
+    'Defeat the Warlord · Zone {z}': 'Derrota o Senhor da Guerra · Zona {z}',
+    'OUTPOST CLEARED': 'POSTO LIMPO',
+    'Loot dropped!': 'Saque largado!',
+    '❤️ Health Potion': '❤️ Poção de Vida',
+    '🔷 Mana Potion': '🔷 Poção de Mana',
+    '🎒 Inventory full!': '🎒 Inventário cheio!',
+    '🎒 Inventory full! Equip, drop or bank items at base.': '🎒 Inventário cheio! Equipa, larga ou guarda itens na base.',
+    'Leaving base': 'A sair da base',
+    'Danger rises with distance': 'O perigo aumenta com a distância',
+    'Zone {z} · enemies grow stronger · rec. level {l}': 'Zona {z} · inimigos mais fortes · nível rec. {l}',
+    'ZONE {z}': 'ZONA {z}',
+    '{b} · rec. level {l}': '{b} · nível rec. {l}',
+    '🏆 New record: Zone {z}': '🏆 Novo recorde: Zona {z}',
+    '🌀 Realm closing in {s}s': '🌀 O reino fecha em {s}s',
+    '🌀 REALM CLOSING': '🌀 O REINO VAI FECHAR',
+    '{why} · {s}s · you will be pulled back to base': '{why} · {s}s · vais ser puxado para a base',
+    'The realm is collapsing': 'O reino está a ruir',
+    'The Overlord has fallen': 'O Overlord caiu',
+    'A new realm has opened': 'Um novo reino abriu',
+    'Outposts cleared in this realm: {n}/3': 'Postos limpos neste reino: {n}/3',
+    '👹 THE OVERLORD AWAKENS': '👹 O OVERLORD DESPERTOU',
+    'Zone {z} · follow the purple arrow': 'Zona {z} · segue a seta roxa',
+    '👹 OVERLORD': '👹 OVERLORD',
+    'Defeat it to collapse the realm and claim its treasure': 'Derrota-o para fazer ruir o reino e ganhar o tesouro',
+    '👹 OVERLORD SLAIN': '👹 OVERLORD DERROTADO',
+    '+💎{g} · the realm will collapse soon': '+💎{g} · o reino vai ruir em breve',
+    '📜 Quest complete: {q}. Claim it at base': '📜 Missão concluída: {q}. Recebe-a na base',
+    'Reward: 🪙{g} ✨{x} XP': 'Recompensa: 🪙{g} ✨{x} XP',
+    ' + item': ' + item',
+    '⚠️ Server offline: purchases unavailable': '⚠️ Servidor offline: compras indisponíveis',
+    '⏳ Payment received, adding gems…': '⏳ Pagamento recebido, a adicionar diamantes…',
+    '💎 Gems added. Thank you!': '💎 Diamantes adicionados. Obrigado!',
+    'Payment failed': 'O pagamento falhou',
+    'Gems can be bought in the Telegram app': 'Os diamantes compram-se na app do Telegram',
+    '💎 +{n} gems (dev mode, no charge)': '💎 +{n} diamantes (modo dev, sem custo)',
+    'No room for potions': 'Sem espaço para poções',
+    '🗝️ New vault chest unlocked (+8 slots)': '🗝️ Novo baú desbloqueado (+8 espaços)',
+    '🪙 +{g} gold': '🪙 +{g} ouro',
+    '🧪 +4 health and +4 mana potions': '🧪 +4 poções de vida e +4 de mana',
+    'Inventory full': 'Inventário cheio',
+    'Sold for 🪙{v}': 'Vendido por 🪙{v}',
+    'Salvaged ⚙️{v}': 'Desmontado: ⚙️{v}',
+    'Stash full — upgrade the Armory': 'Vault cheio: melhora o Arsenal',
+    '{b} upgraded!': '{b} melhorado!',
+    'Inventory and stash full': 'Inventário e vault cheios',
+    '{i} You are a {c}': '{i} Agora és {c}',
+    'Code copied': 'Código copiado',
+    'Code copied ✔': 'Código copiado ✔',
+    'Select the code and copy it': 'Seleciona o código e copia-o',
+    'That code is not valid': 'Esse código não é válido',
+    'Load this save (Level {l}, 🪙{g})? Current progress will be replaced.': 'Carregar este save (Nível {l}, 🪙{g})? O progresso atual será substituído.',
+    'Erase ALL progress (base, skills, items)?': 'Apagar TODO o progresso (base, habilidades, itens)?',
+
+    // ----- panels -----
+    'carried': 'a levar',
+    'Paused': 'Pausa',
+    'Level': 'Nível', 'Best zone': 'Melhor zona', 'Best tier': 'Melhor região', 'Total kills': 'Abates', 'Warlords slain': 'Chefes derrotados',
+    'Runs': 'Runs', 'This run': 'Esta run', 'Run perks': 'Bónus da run', 'Settings': 'Definições',
+    'Auto-aim': 'Mira automática', 'Shoot nearest enemy automatically when not aiming': 'Dispara no inimigo mais próximo quando não estás a mirar',
+    'Sound': 'Som', 'Language': 'Idioma', 'ON': 'LIGADO', 'OFF': 'DESLIGADO',
+    'Save backup': 'Cópia do save',
+    'Progress saves automatically on this device. Copy this code somewhere safe (e.g. Notes) to restore it later or on another device.': 'O progresso guarda-se automaticamente neste aparelho. Copia este código para um lugar seguro (ex.: Notas) para o recuperar mais tarde ou noutro aparelho.',
+    'Progress is also saved to the cloud with your Telegram account.': 'O progresso também é guardado na nuvem com a tua conta do Telegram.',
+    '📋 Copy code': '📋 Copiar código', '📥 Load pasted code': '📥 Carregar código colado',
+    'How to play': 'Como jogar', '▶ Resume': '▶ Continuar', 'Erase save': 'Apagar save',
+    'HELP': `<b>Polegar esquerdo</b> move, <b>polegar direito</b> mira e dispara (ou deixa a mira automática). 💨 esquiva, 🏠 volta à base (custa mais ouro quanto mais longe estás, é interrompido se levares dano), ✨ usa a habilidade da classe (gasta mana), ❤️/🔷 bebem poções de vida e mana.
+      Quanto mais longe da base, maior o <b>nível da zona</b>: inimigos mais fortes, melhor saque. O mundo é infinito: a cada 5 zonas há uma nova região de perigo (Arredores → Terras Áridas → Terras Mortas → Inferno → O Abismo…) com novos inimigos.
+      Os inimigos largam armas e armaduras (capacete, armadura, calças, botas) com bónus de atributos. Cada nível dá pontos de atributo (🎒) e um ponto de habilidade (⭐).
+      A cada 15 minutos o <b>reino</b> fecha e abre um mapa novo (és puxado para a base em segurança). Limpa 3 postos para acordar o 👹 <b>Overlord</b> do reino. Fala com os NPCs na base para <b>missões</b>, 💎 diamantes e baús de vault.
+      Limpa os <b>postos</b> vermelhos derrotando o 👑 Senhor da Guerra. O ouro e a sucata que levas só ficam seguros quando <b>voltas à base</b>.
+      Morrer acaba a run: perdes o saque que levas, o equipamento solto no inventário e os bónus da run. Itens equipados, poções, nível, habilidades, base e vault ficam.
+      <br><span class="muted">Computador: WASD + rato, Espaço esquiva, F habilidade, H voltar à base, Q/1 poção de vida, R/2 poção de mana, E base, B inventário, K habilidades.</span>`,
+    'An open-world roguelike shooter. Pick a class, venture out from your base, survive, loot and level up.': 'Um shooter roguelike de mundo aberto. Escolhe uma classe, sai da base, sobrevive, junta saque e sobe de nível.',
+    'Start': 'Começar',
+    'Choose your class': 'Escolhe a tua classe', 'Change class': 'Mudar de classe',
+    'Switching is free. Your items, level and spent attribute points stay.': 'Mudar é grátis. Os teus itens, nível e pontos de atributo ficam.',
+    'starts with {w}': 'começa com {w}', '{m} mana': '{m} mana',
+    '🎒 Inventory': '🎒 Inventário', 'Lv {n}': 'Nv {n}', 'Lv{n}': 'Nv{n}',
+    '⚠️ Gear in your bag is lost if you die (potions are kept). Equipped items are always safe.': '⚠️ O equipamento no inventário perde-se se morreres (as poções ficam). Os itens equipados estão sempre seguros.',
+    'Attributes': 'Atributos', '· {n} points to spend': '· {n} pontos para distribuir', 'Stats': 'Estatísticas',
+    'Max HP': 'Vida máx.', 'Max mana': 'Mana máx.', 'Armor': 'Armadura', '(-{n}% dmg)': '(-{n}% dano)', 'Damage': 'Dano',
+    'Fire rate': 'Cadência', 'Crit': 'Crítico', 'Speed': 'Velocidade', 'Ability power': 'Poder de habilidade', 'HP regen': 'Regen. vida', 'Mana regen': 'Regen. mana',
+    '⭐ Skills': '⭐ Habilidades', 'Skill points:': 'Pontos de habilidade:', '· earn 1 per level · permanent': '· ganhas 1 por nível · permanentes',
+    'You also have {n} attribute points: spend them in 🎒 Inventory.': 'Também tens {n} pontos de atributo: usa-os no 🎒 Inventário.',
+    'Rank {n}': 'Rank {n}', ' per rank': ' por rank', 'MAX': 'MÁX',
+    '🏗️ Base': '🏗️ Base', '🏪 Shop': '🏪 Loja', '📦 Stash': '📦 Vault', '🔧 Workshop': '🔧 Oficina', '🏠 Home Base': '🏠 Base',
+    'Class: {c}': 'Classe: {c}', 'Change': 'Mudar', 'Next: {d}': 'Próximo: {d}',
+    '{d} · you have {n}': '{d} · tens {n}',
+    'Weapons &amp; armor': 'Armas e armaduras', '(level {n}, rises with your best zone)': '(nível {n}, sobe com a tua melhor zona)',
+    'Buy 🪙{p}': 'Comprar 🪙{p}', 'Sold out.': 'Esgotado.', '🔄 New stock (🪙25)': '🔄 Novo stock (🪙25)',
+    '🗝️ Vault chest {n}': '🗝️ Baú {n}', '🛡️ Armory rack': '🛡️ Prateleira do Arsenal', 'Vault {a}/{b}': 'Vault {a}/{b}', '· safe forever': '· seguro para sempre',
+    '🔒 Unlock vault chest {n} (💎{p})': '🔒 Desbloquear baú {n} (💎{p})',
+    'Build the <b>🔧 Workshop</b> (Base tab) to upgrade weapons and armor with gold and scrap.': 'Constrói a <b>🔧 Oficina</b> (separador Base) para melhorar armas e armaduras com ouro e sucata.',
+    'Weapons: +10% damage, +3% fire rate per level. Armor: +10% armor per level. Max +{n} at this Workshop level.': 'Armas: +10% dano, +3% cadência por nível. Armaduras: +10% armadura por nível. Máx. +{n} neste nível da Oficina.',
+    'Upgrade 🪙{g} ⚙️{s}': 'Melhorar 🪙{g} ⚙️{s}', 'Salvage ⚙️{v}': 'Desmontar ⚙️{v}',
+    'Tap a square to see the item.': 'Toca num quadrado para ver o item.',
+    'Unequip': 'Desequipar', 'Use': 'Usar', 'Equip': 'Equipar', 'To stash': 'Para o vault', 'Drop': 'Largar', 'Take': 'Tirar', 'Sell 🪙{v}': 'Vender 🪙{v}',
+    'Equipment': 'Equipamento', 'Weapon': 'Arma', 'Bag {a}/{b}': 'Inventário {a}/{b}',
+    'NEW': 'NOVO', '🛡️ Armor': '🛡️ Armadura', 'DMG': 'DANO',
+    'The wastes grow bolder every day. Thin their ranks and I will make it worth your while.': 'Os inimigos ficam mais ousados a cada dia. Reduz as fileiras deles e vais ser bem recompensado.',
+    'Bring me proof of your deeds, survivor.': 'Traz-me provas dos teus feitos, sobrevivente.',
+    'Each realm hides an Overlord. Clear three outposts and it will show itself.': 'Cada reino esconde um Overlord. Limpa três postos e ele vai aparecer.',
+    'Reward:': 'Recompensa:', 'Claim': 'Receber',
+    'Progress counts anywhere in the realm. Claim rewards here at the base.': 'O progresso conta em qualquer parte do reino. Recebe as recompensas aqui na base.',
+    'Gems open doors that gold cannot. Vaults, supplies… for a price.': 'Os diamantes abrem portas que o ouro não abre. Baús, mantimentos… por um preço.',
+    'Spend gems': 'Gastar diamantes', 'Vault chest': 'Baú de vault', '+8 permanent stash slots · you own {a}/{b}': '+8 espaços permanentes · tens {a}/{b}',
+    'Gold pouch': 'Bolsa de ouro', '(grows with your best zone)': '(cresce com a tua melhor zona)', 'Potion crate': 'Caixa de poções', '4 health + 4 mana potions': '4 poções de vida + 4 de mana',
+    'Get gems': 'Obter diamantes', 'Paid securely with Telegram Stars ⭐. Gems are also earned from quests and Overlords.': 'Pagamento seguro com Telegram Stars ⭐. Também ganhas diamantes em missões e com Overlords.',
+    '💎 Gems are sold in the Telegram app with Telegram Stars ⭐': '💎 Os diamantes vendem-se na app do Telegram com Telegram Stars ⭐',
+    'open @{b}': 'abrir @{b}', '. You can also earn gems from quests and Overlords.': '. Também podes ganhar diamantes em missões e com Overlords.',
+    '{n} gems': '{n} diamantes', '{n} ⭐ Telegram Stars': '{n} ⭐ Telegram Stars',
+    '⚡ Run rank {n}: choose a perk': '⚡ Rank {n}: escolhe um bónus', 'Perks last until you die.': 'Os bónus duram até morreres.',
+    '💀 You fell in Zone {z}': '💀 Caíste na Zona {z}', 'Survived': 'Sobreviveste', 'Kills': 'Abates', 'Run rank': 'Rank', 'Items lost': 'Itens perdidos',
+    'Lost 🪙{g} ⚙️{s}': 'Perdeste 🪙{g} ⚙️{s}', ' · Vault saved 🪙{g} ⚙️{s}': ' · O Cofre salvou 🪙{g} ⚙️{s}',
+    'The wasteland shifts… a new world awaits. Your level, skills, equipped gear, potions, base and stash remain.': 'O deserto muda… um novo mundo espera. O teu nível, habilidades, equipamento, poções, base e vault ficam.',
+    'Rise again': 'Renascer',
+
+    // ----- quests -----
+    'Defeat {n} enemies': 'Derrota {n} inimigos', 'Defeat {n} {e}': 'Derrota {n} {e}', 'Defeat {n} elite enemies': 'Derrota {n} inimigos de elite',
+    'Clear 1 outpost': 'Limpa 1 posto', 'Clear {n} outposts': 'Limpa {n} postos', 'Reach zone {n}': 'Chega à zona {n}',
+    'Collect {n} gold': 'Junta {n} de ouro', 'Slay a realm Overlord': 'Derrota um Overlord do reino',
+
+    // ----- data names -----
+    'Common': 'Comum', 'Uncommon': 'Incomum', 'Rare': 'Raro', 'Epic': 'Épico', 'Legendary': 'Lendário',
+    'Pistol': 'Pistola', 'SMG': 'Submetralhadora', 'Shotgun': 'Escopeta', 'Rifle': 'Rifle', 'Minigun': 'Metralhadora', 'Launcher': 'Lança-granadas',
+    'Helmet': 'Capacete', 'Pants': 'Calças', 'Boots': 'Botas',
+    'Health Potion': 'Poção de Vida', 'Mana Potion': 'Poção de Mana', 'Restores 50% HP': 'Recupera 50% da vida', 'Restores 60% mana': 'Recupera 60% da mana',
+    '+{v}% damage': '+{v}% dano', '+{v}% fire rate': '+{v}% cadência', '+{v}% crit chance': '+{v}% crítico', '+{v} pierce': '+{v} perfuração',
+    '+{v} projectile': '+{v} projétil', '{v}% lifesteal': '{v}% roubo de vida', '+{v}% range': '+{v}% alcance', '+{v}% Speed': '+{v}% Velocidade',
+    'Raider': 'Saqueador', 'Stalker': 'Perseguidor', 'Spitter': 'Cuspidor', 'Brute': 'Bruto', 'Bomber': 'Bombista', 'Sniper': 'Atirador',
+    'Juggernaut': 'Colosso', 'Charger': 'Investidor', 'Overlord': 'Overlord', 'Warlord': 'Senhor da Guerra',
+    'Raiders': 'Saqueadores', 'Stalkers': 'Perseguidores', 'Spitters': 'Cuspidores', 'Brutes': 'Brutos', 'Bombers': 'Bombistas', 'Snipers': 'Atiradores',
+    'Juggernauts': 'Colossos', 'Chargers': 'Investidores',
+    'Meadows': 'Prados', 'Deepwood': 'Floresta Funda', 'Marsh': 'Pântano', 'Dunes': 'Dunas', 'Wasteland': 'Terra Devastada', 'Frostlands': 'Terras Geladas', 'Ruins': 'Ruínas',
+    'Outskirts': 'Arredores', 'Badlands': 'Terras Áridas', 'Deadlands': 'Terras Mortas', 'Inferno': 'Inferno', 'The Abyss': 'O Abismo',
+    'Hollow Points': 'Balas Expansivas', 'Hair Trigger': 'Gatilho Sensível', 'Thick Skin': 'Pele Grossa', 'Sprinter': 'Velocista', 'Deadeye': 'Olho de Águia',
+    'Split Shot': 'Tiro Dividido', 'Penetrator': 'Perfurador', 'Magnetism': 'Magnetismo', 'Nanobots': 'Nanobots', 'Vampiric': 'Vampírico', 'Greed': 'Ganância',
+    'Blink': 'Piscar', 'Spikes': 'Espinhos',
+    '+15% damage': '+15% dano', '+12% fire rate': '+12% cadência', '+25 max HP': '+25 vida máx.', '+8% move speed': '+8% velocidade', '+8% crit chance': '+8% crítico',
+    '+1 projectile': '+1 projétil', '+1 pierce': '+1 perfuração', '+60% pickup range': '+60% alcance de recolha', '+1 HP/s regeneration': '+1 vida/s regeneração',
+    '+2% lifesteal': '+2% roubo de vida', '+25% gold found': '+25% ouro encontrado', '-20% dash cooldown': '-20% recarga da esquiva', 'Reflect 40% melee damage': 'Reflete 40% do dano corpo a corpo',
+    'Toughness': 'Resistência', 'Marksman': 'Pontaria', 'Trigger Finger': 'Dedo no Gatilho', 'Fleet Foot': 'Pés Ligeiros', 'Critical Eye': 'Olho Crítico',
+    'Second Wind': 'Segundo Fôlego', 'Dash Mastery': 'Mestre da Esquiva', 'Scavenger': 'Recolector', 'Haggler': 'Negociante', 'Lucky': 'Sortudo', 'Ascension': 'Ascensão',
+    '+10% max HP': '+10% vida máx.', '+8% damage': '+8% dano', '+6% fire rate': '+6% cadência', '+5% move speed': '+5% velocidade', '+4% crit chance': '+4% crítico',
+    '+0.5 HP/s regeneration': '+0.5 vida/s regeneração', '-10% dash cooldown': '-10% recarga da esquiva', '+15% scrap found': '+15% sucata encontrada',
+    '-6% shop prices, +6% sell value': '-6% preços na loja, +6% valor de venda', 'Better weapon rarity': 'Melhor raridade de armas', '+3% damage & +3% max HP (no limit)': '+3% dano e +3% vida máx. (sem limite)',
+    'Market': 'Mercado', 'Vault': 'Cofre', 'Clinic': 'Clínica', 'Armory': 'Arsenal', 'Workshop': 'Oficina', 'Turrets': 'Torres', 'Radar': 'Radar', 'Farm': 'Quinta',
+    '{n} weapons in shop, better rarity': '{n} armas na loja, melhor raridade',
+    'Keep {n}% of carried loot on death': 'Mantém {n}% do saque ao morrer',
+    '+{n} max HP': '+{n} vida máx.', ', rapid heal at base': ', cura rápida na base',
+    'Stash {n} slots': 'Vault +{n} espaços',
+    'Upgrade weapons up to +{n}': 'Melhora armas até +{n}',
+    '{n} defense turrets guard the base': '{n} torres defendem a base', '1 defense turret guards the base': '1 torre defende a base',
+    'Minimap range x{n}, shows outposts': 'Alcance do minimapa x{n}, mostra postos', 'Reveal outposts on minimap': 'Revela postos no minimapa',
+    '+{n} gold every 10s': '+{n} ouro a cada 10s',
+    'Strength': 'Força', 'Dexterity': 'Destreza', 'Agility': 'Agilidade', 'Intelligence': 'Inteligência', 'Vitality': 'Vitalidade',
+    'STR': 'FOR', 'DEX': 'DES', 'AGI': 'AGI', 'INT': 'INT', 'VIT': 'VIT',
+    '+1.5% damage, +2 max HP': '+1.5% dano, +2 vida máx.', '+1% fire rate, +0.5% crit': '+1% cadência, +0.5% crítico',
+    '+0.6% move speed, -0.8% dash cooldown': '+0.6% velocidade, -0.8% recarga da esquiva', '+5 max mana, +0.15 mana/s, +3% ability power': '+5 mana máx., +0.15 mana/s, +3% poder de habilidade',
+    '+8 max HP, +0.1 HP/s': '+8 vida máx., +0.1 vida/s',
+    'Soldier': 'Soldado', 'Ranger': 'Patrulheiro', 'Technomancer': 'Tecnomante', 'Guardian': 'Guardião', 'Scout': 'Batedor',
+    'Balanced and sturdy. Good at everything.': 'Equilibrado e resistente. Bom em tudo.',
+    'Dexterous marksman with deadly fire rate.': 'Atirador ágil com cadência mortal.',
+    'Intelligence caster. Lives on mana.': 'Feiticeiro de inteligência. Vive da mana.',
+    'Strong tank with huge health.': 'Tanque forte com muita vida.',
+    'Fast and agile. Hit and run.': 'Rápido e ágil. Ataca e foge.',
+    'Grenade': 'Granada', 'Rapid Fire': 'Tiro Rápido', 'Chain Lightning': 'Raio em Cadeia', 'War Cry': 'Grito de Guerra', 'Shadow Step': 'Passo Sombrio',
+    'Throw a grenade that explodes for heavy area damage.': 'Atira uma granada que explode com muito dano em área.',
+    'Double fire rate and +1 pierce for 4 seconds.': 'Dobra a cadência e +1 perfuração durante 4 segundos.',
+    'Lightning jumps between up to 6 enemies.': 'O raio salta entre até 6 inimigos.',
+    'Shockwave damages and knocks back enemies, heals 25% HP, 2s invulnerable.': 'Onda de choque que fere e empurra inimigos, cura 25% da vida, 2s invulnerável.',
+    'Blink forward, 1s invulnerable, 100% crit and +40% speed for 3s.': 'Teletransporte em frente, 1s invulnerável, 100% crítico e +40% velocidade durante 3s.',
+  },
+};
+
+function t(s, v) {
+  let r = (I18N.lang === 'pt' && I18N.pt[s]) || s;
+  if (v) r = r.replace(/\{(\w+)\}/g, (m, k) => (v[k] !== undefined ? v[k] : m));
+  return r;
+}
+
+// "Rare Pistol" -> "Pistola Rara": Portuguese puts the adjective after the noun and matches its gender
+const PT_NOUN = {
+  Pistol: ['Pistola', 'f'], SMG: ['Submetralhadora', 'f'], Shotgun: ['Escopeta', 'f'], Rifle: ['Rifle', 'm'], Minigun: ['Metralhadora', 'f'],
+  Launcher: ['Lança-granadas', 'm'], Helmet: ['Capacete', 'm'], Armor: ['Armadura', 'f'], Pants: ['Calças', 'fp'], Boots: ['Botas', 'fp'],
+};
+const PT_ADJ = {
+  Common: { m: 'Comum', f: 'Comum', fp: 'Comuns' }, Uncommon: { m: 'Incomum', f: 'Incomum', fp: 'Incomuns' },
+  Rare: { m: 'Raro', f: 'Rara', fp: 'Raras' }, Epic: { m: 'Épico', f: 'Épica', fp: 'Épicas' }, Legendary: { m: 'Lendário', f: 'Lendária', fp: 'Lendárias' },
+};
+function tItem(rarity, noun) {
+  if (I18N.lang !== 'pt' || !PT_NOUN[noun]) return `${rarity} ${noun}`;
+  const [n, g] = PT_NOUN[noun];
+  return `${n} ${PT_ADJ[rarity][g]}`;
+}
+
+I18N.init();

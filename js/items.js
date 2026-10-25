@@ -39,7 +39,7 @@ function weaponStats(w) {
 }
 const weaponDps = w => { const s = weaponStats(w); return s.dmg * s.rate * (s.bullets + s.multi); };
 const weaponValue = w => Math.round(WEAPON_TYPES[w.type].price * Math.pow(RARITIES[w.rarity].mult, 2) * (1 + 0.18 * (w.level - 1)) * (1 + 0.15 * w.upg));
-const weaponName = w => `${RARITIES[w.rarity].name} ${WEAPON_TYPES[w.type].name}${w.upg ? ' +' + w.upg : ''}`;
+const weaponName = w => `${tItem(RARITIES[w.rarity].name, WEAPON_TYPES[w.type].name)}${w.upg ? ' +' + w.upg : ''}`;
 const upgradeCost = w => ({ gold: Math.round(40 * (w.upg + 1) * (1 + 0.1 * w.level)), scrap: Math.round(12 * Math.pow(w.upg + 1, 1.6)) });
 const salvageValue = w => Math.round(4 * (w.rarity + 1) * (1 + 0.2 * (w.level - 1)) + w.upg * 6);
 
@@ -69,8 +69,8 @@ function itemValue(it) {
   return Math.round(ARMOR_SLOTS[it.slot].price * Math.pow(RARITIES[it.rarity].mult, 2) * (1 + .18 * (it.level - 1)) * (1 + .15 * it.upg));
 }
 function itemName(it) {
-  if (it.kind === 'potion') return POTIONS[it.p].name;
+  if (it.kind === 'potion') return t(POTIONS[it.p].name);
   if (isWeapon(it)) return weaponName(it);
-  return `${RARITIES[it.rarity].name} ${ARMOR_SLOTS[it.slot].name}${it.upg ? ' +' + it.upg : ''}`;
+  return `${tItem(RARITIES[it.rarity].name, ARMOR_SLOTS[it.slot].name)}${it.upg ? ' +' + it.upg : ''}`;
 }
-const statLabel = (id, v) => id === 'spd' ? `+${v}% Speed` : `+${v} ${ATTRS.find(a => a.id === id).short}`;
+const statLabel = (id, v) => id === 'spd' ? t('+{v}% Speed', { v }) : `+${v} ${t(ATTRS.find(a => a.id === id).short)}`;

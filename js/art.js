@@ -375,9 +375,9 @@ function drawBuilding(ctx, b, l) {
   // level badge + name plate
   if (l) { ball(ctx, x + h - 2, y - h + 2, 9, '#ffca28', 2); ctx.font = '800 10px system-ui'; ctx.fillStyle = '#3e2723'; ctx.fillText(l, x + h - 2, y - h + 2.5); }
   ctx.font = '700 11px system-ui';
-  const tw = ctx.measureText(b.name).width + 10;
+  const bn = t(b.name), tw = ctx.measureText(bn).width + 10;
   rrect(ctx, x - tw / 2, y + h + 4, tw, 15, 7, 'rgba(0,0,0,.55)', 0);
-  ctx.fillStyle = '#fff'; ctx.fillText(b.name, x, y + h + 12);
+  ctx.fillStyle = '#fff'; ctx.fillText(bn, x, y + h + 12);
 }
 
 function drawOutpost(ctx, o) {

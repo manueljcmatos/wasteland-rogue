@@ -23,13 +23,13 @@ const WEAPON_TYPES = {
 };
 
 const AFFIXES = [
-  { id: 'dmg',    label: v => `+${v}% damage`,     roll: () => U.randi(10, 30) },
-  { id: 'rate',   label: v => `+${v}% fire rate`,  roll: () => U.randi(8, 25) },
-  { id: 'crit',   label: v => `+${v}% crit chance`, roll: () => U.randi(5, 15) },
-  { id: 'pierce', label: v => `+${v} pierce`,      roll: () => 1 },
-  { id: 'multi',  label: v => `+${v} projectile`,  roll: () => 1 },
-  { id: 'leech',  label: v => `${v}% lifesteal`,   roll: () => U.randi(1, 4) },
-  { id: 'range',  label: v => `+${v}% range`,      roll: () => U.randi(10, 30) },
+  { id: 'dmg',    label: v => t('+{v}% damage', { v }),     roll: () => U.randi(10, 30) },
+  { id: 'rate',   label: v => t('+{v}% fire rate', { v }),  roll: () => U.randi(8, 25) },
+  { id: 'crit',   label: v => t('+{v}% crit chance', { v }), roll: () => U.randi(5, 15) },
+  { id: 'pierce', label: v => t('+{v} pierce', { v }),      roll: () => 1 },
+  { id: 'multi',  label: v => t('+{v} projectile', { v }),  roll: () => 1 },
+  { id: 'leech',  label: v => t('{v}% lifesteal', { v }),   roll: () => U.randi(1, 4) },
+  { id: 'range',  label: v => t('+{v}% range', { v }),      roll: () => U.randi(10, 30) },
 ];
 const AFFIX_BY_ID = Object.fromEntries(AFFIXES.map(a => [a.id, a]));
 
@@ -92,14 +92,14 @@ const skillMax = s => s.infinite ? Infinity : SKILL_MAX;
 
 // Upgradable home buildings (persist forever)
 const BUILDINGS = [
-  { id: 'market',   icon: '🏪', name: 'Market',   desc: l => `${Math.min(8, 3 + l)} weapons in shop, better rarity` },
-  { id: 'vault',    icon: '🏦', name: 'Vault',    desc: l => `Keep ${Math.min(80, l * 12)}% of carried loot on death` },
-  { id: 'clinic',   icon: '🏥', name: 'Clinic',   desc: l => `+${l * 15} max HP${l ? ', rapid heal at base' : ''}` },
-  { id: 'armory',   icon: '🛡️', name: 'Armory',   desc: l => `Stash ${6 + l * 4} slots` },
-  { id: 'workshop', icon: '🔧', name: 'Workshop', desc: l => `Upgrade weapons up to +${l * 2}` },
-  { id: 'turrets',  icon: '🗼', name: 'Turrets',  desc: l => `${l} defense turret${l === 1 ? '' : 's'} guard the base` },
-  { id: 'radar',    icon: '📡', name: 'Radar',    desc: l => l ? `Minimap range x${(1 + Math.min(l, 6) * .4).toFixed(1)}, shows outposts` : 'Reveal outposts on minimap' },
-  { id: 'garden',   icon: '🌾', name: 'Farm',     desc: l => `+${l * 3} gold every 10s` },
+  { id: 'market',   icon: '🏪', name: 'Market',   desc: l => t('{n} weapons in shop, better rarity', { n: Math.min(8, 3 + l) }) },
+  { id: 'vault',    icon: '🏦', name: 'Vault',    desc: l => t('Keep {n}% of carried loot on death', { n: Math.min(80, l * 12) }) },
+  { id: 'clinic',   icon: '🏥', name: 'Clinic',   desc: l => t('+{n} max HP', { n: l * 15 }) + (l ? t(', rapid heal at base') : '') },
+  { id: 'armory',   icon: '🛡️', name: 'Armory',   desc: l => t('Stash {n} slots', { n: l * 4 }) },
+  { id: 'workshop', icon: '🔧', name: 'Workshop', desc: l => t('Upgrade weapons up to +{n}', { n: l * 2 }) },
+  { id: 'turrets',  icon: '🗼', name: 'Turrets',  desc: l => l === 1 ? t('1 defense turret guards the base') : t('{n} defense turrets guard the base', { n: l }) },
+  { id: 'radar',    icon: '📡', name: 'Radar',    desc: l => l ? t('Minimap range x{n}, shows outposts', { n: (1 + Math.min(l, 6) * .4).toFixed(1) }) : t('Reveal outposts on minimap') },
+  { id: 'garden',   icon: '🌾', name: 'Farm',     desc: l => t('+{n} gold every 10s', { n: l * 3 }) },
 ];
 const BUILD_MAX = 10;
 const BUILD_POS = {
@@ -119,9 +119,9 @@ const TIERS = [
   { from: 20, name: 'The Abyss', color: '#90a4ae', tint: 'rgba(0,0,10,.36)',     elite: .18 },
 ];
 const tierOf = z => {
-  let t = TIERS[0]; for (const x of TIERS) if (z >= x.from) t = x;
-  if (z >= 25) { const depth = Math.floor((z - 20) / 5); return { ...t, name: `The Abyss ${'I'.repeat(Math.min(depth, 3))}${depth > 3 ? '+' + (depth - 3) : ''}`, elite: Math.min(.35, .18 + depth * .03) }; }
-  return t;
+  let tr = TIERS[0]; for (const x of TIERS) if (z >= x.from) tr = x;
+  if (z >= 25) { const depth = Math.floor((z - 20) / 5); return { ...tr, name: `${t('The Abyss')} ${'I'.repeat(Math.min(depth, 3))}${depth > 3 ? '+' + (depth - 3) : ''}`, elite: Math.min(.35, .18 + depth * .03) }; }
+  return { ...tr, name: t(tr.name) };
 };
 const recLevel = z => Math.max(1, Math.round(z * 2.2 - 1));
 const zoneOf = (x, y) => 1 + Math.floor(Math.max(0, Math.hypot(x, y) - HOME_R) / 850);
@@ -176,8 +176,9 @@ const POTIONS = {
 };
 
 const MAX_CHESTS = 10;
+// Prices in Telegram Stars; must match PACKS in server/server.js
 const GEM_PACKS = [
-  { gems: 100,  price: '$0.99' },
-  { gems: 550,  price: '$4.99', bonus: '+10%' },
-  { gems: 1200, price: '$9.99', bonus: '+20%' },
+  { id: 'p100',  gems: 100,  stars: 75 },
+  { id: 'p550',  gems: 550,  stars: 350, bonus: '+10%' },
+  { id: 'p1200', gems: 1200, stars: 700, bonus: '+20%' },
 ];
