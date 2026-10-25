@@ -22,11 +22,13 @@
       <div class="bar mp"><div id="mpFill"></div><span id="mpText"></span></div>
       <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
       <div class="bar rank"><div id="rankFill"></div><span id="rankText"></span></div>
+      <div id="questTrk"></div>
     </div>
     <div id="side">
       <canvas id="minimap" width="120" height="120"></canvas>
       <div id="res">
         <div id="zoneLbl"></div>
+        <div id="realmLbl"></div>
         <div><span>🪙</span><b id="goldTxt">0</b></div>
         <div><span>⚙️</span><b id="scrapTxt">0</b></div>
       </div>
@@ -38,7 +40,7 @@
     <button data-act="skills" aria-label="Skills">⭐<i id="spBadge"></i></button>
   </div>
   <div id="actBtns">
-    <button id="btnHome" data-act="home">🏠<span>Base</span></button>
+    <button id="btnHome" data-act="home"><span id="homeLbl">🏠 Base</span></button>
     <button id="btnAbility" data-act="ability"><span id="abIcon">✨</span><em id="abCost"></em><div id="abCd"></div></button>
     <div class="potrow">
       <button id="btnHp" data-act="hp" class="pot">❤️<i id="hpCount"></i></button>
@@ -59,6 +61,7 @@
 <script src="js/save.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/input.js"></script>
+<script src="js/realm.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/art.js"></script>
 <script src="js/game.js"></script>

@@ -21,6 +21,13 @@ Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.
 
 ## Features
 
+- **Rotating realms** (Realm of the Mad God style): every 15 minutes of play the realm closes and a new procedurally generated map opens with a new name. You are pulled back to base safely and your loot is banked.
+- **Realm Overlord**: clear 3 outposts in a realm to awaken a 👹 Overlord. Killing it drops top loot and 💎 gems, then the realm collapses.
+- **NPCs at base**: 📜 Commander Vale (quests), 💎 Mystic Zara (gem shop), 🗝️ Keeper Bram (vault), 🔨 Smith Hilda (workshop).
+- **Quests**: 3 active missions (kill, hunt a type, elites, outposts, reach a zone, collect gold, slay an Overlord) with gold, XP, gem and item rewards.
+- **Two currencies**: 🪙 gold (earned in game) and 💎 gems (premium). Gems buy extra **vault chests** (+8 stash slots each), gold pouches and potion crates.
+  Gem packs run in **test mode**: no payment provider is connected, packs are granted for free. Real payments need a server (see below).
+
 - **5 classes** to choose from, each with a mana ability:
   🪖 Soldier (Grenade), 🏹 Ranger (Rapid Fire), 🔮 Technomancer (Chain Lightning), 🛡️ Guardian (War Cry), 🗡️ Scout (Shadow Step). Change class anytime at base.
 - **Attributes**: Strength, Dexterity, Agility, Intelligence, Vitality (+3 points per level) plus Speed from gear.
@@ -57,9 +64,19 @@ js/data.js      all balance data (weapons, enemies, perks, skills, buildings)
 js/items.js     weapon generation and stats
 js/world.js     procedural world, biomes, obstacles, outposts
 js/game.js      simulation loop and render loop
+js/realm.js     rotating realms, Overlord, quests, NPCs
 js/art.js       all visuals: baked sprites, ground textures, buildings, effects
 js/ui.js        menus: base, shop, stash, workshop, bag, skills, perks
 js/input.js     twin-stick touch + keyboard/mouse
 js/save.js      persistence
 js/audio.js     synthesized sound effects
 ```
+
+## Real money / premium currency (not implemented yet)
+
+Everything currently runs on the device and saves to `localStorage`, so it can be edited by the player.
+Before selling gems for real money the game needs:
+
+1. A backend with player accounts and server-side inventory/currency (the client only displays it).
+2. A payment provider: Stripe or similar for the web/PWA version; Apple / Google in-app purchases if published in the app stores (their rules require it for digital goods, and Apple does not allow crypto to unlock features).
+3. Legal review before using a blockchain token that can be bought or traded (securities, money transmission, KYC rules vary by country).

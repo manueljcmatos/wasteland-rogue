@@ -42,6 +42,7 @@ const ENEMY_TYPES = {
   sniper:  { name: 'Sniper',     hp: 40,  speed: 70,  dmg: 26, r: 15, color: '#64b5f6', xp: 14,  gold: [3, 8],   minLvl: 6,  w: 3, ranged: { rate: .35, speed: 680, range: 720 }, aimLine: true },
   juggernaut: { name: 'Juggernaut', hp: 420, speed: 52, dmg: 38, r: 32, color: '#5d4037', xp: 45, gold: [10, 22], minLvl: 8, w: 2 },
   charger: { name: 'Charger',    hp: 90,  speed: 110, dmg: 30, r: 20, color: '#00bfa5', xp: 22,  gold: [5, 12],  minLvl: 10, w: 3, charge: true },
+  overlord: { name: 'Overlord', hp: 2600, speed: 62, dmg: 34, r: 50, color: '#7c4dff', xp: 600, gold: [120, 220], minLvl: 99, w: 0, ranged: { rate: 1.1, speed: 320, range: 560, burst: 16 } },
   boss:    { name: 'Warlord', hp: 650, speed: 70,  dmg: 26, r: 38, color: '#ff2f6b', xp: 140, gold: [40, 80], minLvl: 99, w: 0, ranged: { rate: .9, speed: 300, range: 520, burst: 10 } },
 };
 
@@ -173,3 +174,10 @@ const POTIONS = {
   hp: { name: 'Health Potion', color: '#e53935', price: 30, desc: 'Restores 50% HP' },
   mp: { name: 'Mana Potion',   color: '#1e88e5', price: 30, desc: 'Restores 60% mana' },
 };
+
+const MAX_CHESTS = 10;
+const GEM_PACKS = [
+  { gems: 100,  price: '$0.99' },
+  { gems: 550,  price: '$4.99', bonus: '+10%' },
+  { gems: 1200, price: '$9.99', bonus: '+20%' },
+];

@@ -14,6 +14,7 @@ const Save = {
       gear: { helmet: null, chest: null, pants: null, boots: null },
       inv: [makePotion('hp', 3), makePotion('mp', 2), null, null, null, null, null, null],
       stash: [], cls: null, ap: 0,
+      gems: 0, vaultChests: 1, quests: [], realm: null,
       attrs: { str: 0, dex: 0, agi: 0, int: 0, vit: 0 },
       seed: U.randi(1, 1e9),
       stats: { kills: 0, runs: 1, deaths: 0, best: 1, bosses: 0, goldEarned: 0 },

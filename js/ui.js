@@ -43,7 +43,7 @@ const UI = {
   head(title) { return `<h2><span>${title}</span><button class="x" data-act="close">✕</button></h2>`; },
   wallet() {
     const S = G.save, r = S.run;
-    return `<div class="wallet"><span>🪙 ${U.fmt(S.gold)}${r.gold ? ` <small class="muted">(+${U.fmt(r.gold)} carried)</small>` : ''}</span><span>⚙️ ${U.fmt(S.scrap)}${r.scrap ? ` <small class="muted">(+${r.scrap})</small>` : ''}</span></div>`;
+    return `<div class="wallet"><span>🪙 ${U.fmt(S.gold)}${r.gold ? ` <small class="muted">(+${U.fmt(r.gold)} carried)</small>` : ''}</span><span>⚙️ ${U.fmt(S.scrap)}${r.scrap ? ` <small class="muted">(+${r.scrap})</small>` : ''}</span><span style="color:#b388ff">💎 ${U.fmt(S.gems)}</span></div>`;
   },
   cls() { return CLASS_BY_ID[G.save.cls] || CLASSES[0]; },
 
@@ -86,6 +86,12 @@ const UI = {
     $('btnAbility').classList.toggle('nomana', p.mp < ab.mana);
     $('btnDash').classList.toggle('cd', p.dashCd > 0);
     $('btnHome').classList.toggle('show', G.atHome);
+    const qr = Quests.readyCount();
+    $('homeLbl').textContent = G.npc ? `${G.npc.icon} Talk` : `🏠 Base${qr ? ` · 📜${qr}` : ''}`;
+    const R = S.realm, left = Realm.timeLeft(), rl = $('realmLbl');
+    rl.textContent = `🌀 ${R.name} · ${U.time(left)}`; rl.classList.toggle('closing', R.closing >= 0);
+    const q = S.quests.find(x => !x.done);
+    $('questTrk').textContent = qr ? `📜 ${qr} quest${qr > 1 ? 's' : ''} ready to claim at base` : q ? `${Quests.icon(q)} ${Quests.text(q)} · ${U.fmt(q.prog)}/${U.fmt(q.target)}` : '';
   },
 
   // ---------- item locations ----------
@@ -123,7 +129,42 @@ const UI = {
       case 'menu': persist(); this.show('menu', this.menuHtml()); $('saveCode').value = Save.exportCode(S); return;
       case 'bag': this.sel = null; this.show('bag', this.bagHtml()); return;
       case 'skills': this.show('skills', this.skillsHtml()); return;
-      case 'home': if (G.atHome) { this.sel = null; this.show('home', this.homeHtml()); } return;
+      case 'home':
+        if (!G.atHome) return;
+        this.sel = null;
+        if (G.npc) return this.npc(G.npc.id);
+        this.show('home', this.homeHtml()); return;
+      case 'quests': this.show('quests', this.questsHtml()); return;
+      case 'gemshop': this.show('gems', this.gemsHtml()); return;
+      case 'claim': Quests.claim(d.id); break;
+      case 'qreroll': Quests.reroll(d.id); break;
+      case 'gempack': {
+        const pk = GEM_PACKS[+d.i]; if (!pk) return;
+        // TEST MODE: no payment provider is connected, so packs are granted for free.
+        S.gems += pk.gems; Sfx.play('level'); this.toast(`💎 +${pk.gems} gems (test mode, no charge)`, '#b388ff');
+        break;
+      }
+      case 'buychest': {
+        const c = this.chestPrice();
+        if (S.vaultChests >= MAX_CHESTS || S.gems < c) return;
+        S.gems -= c; S.vaultChests++; recalc(); Sfx.play('level'); this.toast('🗝️ New vault chest unlocked (+8 slots)', '#b388ff');
+        break;
+      }
+      case 'gemgold': {
+        if (S.gems < 30) return;
+        const g = 500 * Math.max(1, S.stats.best);
+        S.gems -= 30; S.gold += g; Sfx.play('buy'); this.toast(`🪙 +${U.fmt(g)} gold`);
+        break;
+      }
+      case 'gempots': {
+        if (S.gems < 20) return;
+        const room = S.inv.filter(x => !x || x.kind === 'potion').length;
+        if (!room && S.stash.length >= st.stashCap) { this.toast('No room for potions'); return; }
+        S.gems -= 20;
+        for (const p of ['hp', 'mp']) { const pot = makePotion(p, 4); if (!invAdd(pot)) S.stash.push(pot); }
+        Sfx.play('buy'); this.toast('🧪 +4 health and +4 mana potions');
+        break;
+      }
       case 'tab': this.homeTab = d.tab; this.sel = null; break;
       case 'sel': {
         const k = d.w === 'eq' ? d.k : +d.k;
@@ -363,6 +404,7 @@ const UI = {
     return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes, ✨ uses your class ability (costs mana), ❤️/🔷 drink health and mana potions.
       The further you roam from base, the higher the <b>zone level</b>: tougher enemies, better loot. The world is endless: every 5 zones is a new danger tier (Outskirts → Badlands → Deadlands → Inferno → The Abyss…) with new enemy types.
       Enemies drop weapons and armor (helmet, armor, pants, boots) with bonus attributes. Each level gives attribute points (🎒) and a skill point (⭐).
+      Every 15 minutes the <b>realm</b> closes and a new map opens (you are pulled back to base safely). Clear 3 outposts to awaken the realm's 👹 <b>Overlord</b>. Talk to NPCs at base for <b>quests</b>, 💎 gems and vault chests.
       Clear red <b>outposts</b> by killing their 👑 Warlord. Gold and scrap you carry are only safe once you <b>return to base</b>.
       Dying ends the run: you lose carried loot, the gear in your bag and run perks. Equipped items, potions, level, skills, base and stash remain.
       <br><span class="muted">Desktop: WASD + mouse, Space dash, F ability, Q/1 health potion, R/2 mana potion, E base, B bag, K skills.</span>`;
@@ -461,11 +503,13 @@ const UI = {
   },
 
   stashTab() {
-    const S = G.save, cap = G.st.stashCap, cells = [];
-    for (let i = 0; i < cap; i++) cells.push(this.slot(S.stash[i] || null, 'stash', i));
+    const S = G.save, cap = Math.max(G.st.stashCap, S.stash.length), cells = i => this.slot(S.stash[i] || null, 'stash', i);
+    let html = '', i = 0;
+    for (let c = 0; c < S.vaultChests; c++) { html += `<div class="chest"><h4>🗝️ Vault chest ${c + 1}</h4><div class="slots">`; for (let j = 0; j < 8; j++) html += cells(i++); html += '</div></div>'; }
+    if (cap > i) { html += `<div class="chest"><h4>🛡️ Armory rack</h4><div class="slots">`; while (i < cap) html += cells(i++); html += '</div></div>'; }
     return `${this.equipBlock()}${this.invBlock()}${this.detail()}
-      <h3>Stash ${S.stash.length}/${cap} <span class="muted">· safe forever · more slots with Armory</span></h3>
-      <div class="slots">${cells.join('')}</div>`;
+      <h3>Vault ${S.stash.length}/${G.st.stashCap} <span class="muted">· safe forever</span></h3>${html}
+      ${S.vaultChests < MAX_CHESTS ? `<button class="btn big alt" data-act="gemshop">🔒 Unlock vault chest ${S.vaultChests + 1} (💎${this.chestPrice()})</button>` : ''}`;
   },
 
   workTab() {
@@ -480,6 +524,48 @@ const UI = {
         return this.icard(w, (w.upg >= cap ? '<button class="btn" disabled>MAX</button>' :
           `<button class="btn ${can ? 'good' : ''}" data-act="upg" data-uid="${w.uid}" ${can ? '' : 'disabled'}>Upgrade 🪙${c.gold} ⚙️${c.scrap}</button>`) + sal);
       }).join('')}</div>`;
+  },
+
+  // ---------- NPCs ----------
+  npc(id) {
+    if (id === 'quest') return this.act('quests');
+    if (id === 'gems') return this.act('gemshop');
+    this.homeTab = id === 'vault' ? 'stash' : 'work';
+    this.show('home', this.homeHtml());
+  },
+  chestPrice() { return 50 * G.save.vaultChests; },
+
+  questsHtml() {
+    const S = G.save;
+    const lines = ['The wastes grow bolder every day. Thin their ranks and I will make it worth your while.', 'Bring me proof of your deeds, survivor.', 'Each realm hides an Overlord. Clear three outposts and it will show itself.'];
+    return `${this.head('📜 Commander Vale')}
+      <div class="npc-say">“${lines[Math.floor(G.t / 20) % lines.length]}”</div>
+      ${S.quests.map(q => {
+        const r = q.reward, pct = 100 * q.prog / q.target;
+        return `<div class="row"><div class="ic">${Quests.icon(q)}</div><div class="tx"><b>${Quests.text(q)}</b>
+          <div>Reward: 🪙${U.fmt(r.gold)} · ✨${r.xp} XP${r.gems ? ` · <span style="color:#b388ff">💎${r.gems}</span>` : ''}${r.item ? ` · <span style="color:${RARITIES[r.item.rarity].color}">${itemName(r.item)}</span>` : ''}</div>
+          <div class="qbar"><div style="width:${pct}%"></div></div><div>${U.fmt(q.prog)} / ${U.fmt(q.target)}</div></div>
+          ${q.done ? `<button class="btn good" data-act="claim" data-id="${q.id}">Claim</button>` : `<button class="btn alt" data-act="qreroll" data-id="${q.id}" ${S.gold >= 40 ? '' : 'disabled'}>↻ 🪙40</button>`}</div>`;
+      }).join('')}
+      <p class="muted">Progress counts anywhere in the realm. Claim rewards here at the base.</p>`;
+  },
+
+  gemsHtml() {
+    const S = G.save, cp = this.chestPrice();
+    return `${this.head('💎 Mystic Zara')}
+      <div class="npc-say">“Gems open doors that gold cannot. Vaults, supplies… for a price.”</div>
+      ${this.wallet()}
+      <h3>Spend gems</h3>
+      <div class="row"><div class="ic">🗝️</div><div class="tx"><b>Vault chest</b><div>+8 permanent stash slots · you own ${S.vaultChests}/${MAX_CHESTS}</div></div>
+        <button class="btn good" data-act="buychest" ${S.vaultChests < MAX_CHESTS && S.gems >= cp ? '' : 'disabled'}>${S.vaultChests >= MAX_CHESTS ? 'MAX' : `💎${cp}`}</button></div>
+      <div class="row"><div class="ic">💰</div><div class="tx"><b>Gold pouch</b><div>+🪙${U.fmt(500 * Math.max(1, S.stats.best))} (grows with your best zone)</div></div>
+        <button class="btn" data-act="gemgold" ${S.gems >= 30 ? '' : 'disabled'}>💎30</button></div>
+      <div class="row"><div class="ic">🧪</div><div class="tx"><b>Potion crate</b><div>4 health + 4 mana potions</div></div>
+        <button class="btn" data-act="gempots" ${S.gems >= 20 ? '' : 'disabled'}>💎20</button></div>
+      <h3>Get gems</h3>
+      <div class="testmode">🧪 TEST MODE: real payments are not connected yet. These packs are free so you can try the system. Gems are also earned from quests and Overlords.</div>
+      ${GEM_PACKS.map((pk, i) => `<div class="row"><div class="ic">💎</div><div class="tx"><b>${pk.gems} gems</b>${pk.bonus ? ` <span class="up">${pk.bonus}</span>` : ''}<div>Planned price ${pk.price}</div></div>
+        <button class="btn" data-act="gempack" data-i="${i}">Get (test)</button></div>`).join('')}`;
   },
 
   // ---------- perks ----------

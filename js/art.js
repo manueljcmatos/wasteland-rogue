@@ -67,8 +67,8 @@ const Art = {
   },
 
   bodies: {}, icons: {},
-  bodyFor(cls) {
-    const col = (CLASS_BY_ID[cls] || CLASSES[0]).color;
+  bodyFor(cls) { return this.bodyCol((CLASS_BY_ID[cls] || CLASSES[0]).color); },
+  bodyCol(col) {
     return this.bodies[col] || (this.bodies[col] = this.bake(48, x => {
       rrect(x, -17, -9, 11, 18, 4, '#6d4c41');
       rrect(x, -15, -6, 6, 12, 2, '#8d6e63', 0);
@@ -171,6 +171,7 @@ const Art = {
         eyes(x, r, { fx: .38, sp: .42, white: '#ffeb3b', pupil: '#b71c1c' });
         for (const s of [-1, 1]) { x.beginPath(); x.arc(r * .85, s * r * .14, r * .07, 0, 6.283); x.fillStyle = '#004d40'; x.fill(); }
         break;
+      case 'overlord':
       case 'boss':
         for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, c = Math.cos(a), s = Math.sin(a); poly(x, [[c * r * .9 - s * r * .2, s * r * .9 + c * r * .2], [c * r * 1.3, s * r * 1.3], [c * r * .9 + s * r * .2, s * r * .9 - c * r * .2]], '#424242', 1.5); }
         for (const s of [-1, 1]) rrect(x, r * .2, s * r * .62 - r * .13, r * 1.15, r * .26, 3, '#37474f', 2);
@@ -566,4 +567,26 @@ function drawBolts(ctx) {
     }
   }
   ctx.globalAlpha = 1;
+}
+
+function drawNpc(ctx, n) {
+  const p = G.p, near = G.npc === n;
+  const face = near ? Math.atan2(p.y - n.y, p.x - n.x) : Math.PI / 2 + Math.sin(G.t * .7 + n.x) * .6;
+  const bob = Math.sin(G.t * 2.5 + n.x) * 1.2;
+  shadow(ctx, n.x, n.y, 16);
+  ctx.save(); ctx.translate(n.x, n.y + bob); ctx.rotate(face);
+  Art.blit(ctx, Art.bodyCol(n.col), 0, 0);
+  ball(ctx, 1, 0, 10, n.hat);
+  ctx.restore();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 11px system-ui';
+  const tw = ctx.measureText(n.name).width + 10;
+  rrect(ctx, n.x - tw / 2, n.y + 22, tw, 15, 7, near ? 'rgba(255,202,40,.85)' : 'rgba(0,0,0,.6)', 0);
+  ctx.fillStyle = near ? '#3e2723' : '#fff'; ctx.fillText(n.name, n.x, n.y + 30);
+  // marker above the head
+  let mark = n.icon, col = null;
+  if (n.id === 'quest' && Quests.readyCount()) { mark = '!'; col = '#ffd600'; }
+  const my = n.y - 34 + Math.sin(G.t * 4) * 3;
+  if (col) { ball(ctx, n.x, my, 11, col, 2); ctx.font = '900 16px system-ui'; ctx.fillStyle = '#3e2723'; ctx.fillText(mark, n.x, my + 1); }
+  else { ctx.font = '16px system-ui'; ctx.fillText(mark, n.x, my); }
 }

@@ -55,7 +55,7 @@ function computeStats() {
     leech: m.leech, goldMul: 1 + m.gold, scrapMul: 1 + k.scav * .15,
     thorns: m.thorns, multi: m.multi, pierce: m.pierce,
     luck: k.lucky * .25, haggle: k.haggle,
-    stashCap: 6 + b.armory * 4,
+    stashCap: 8 * S.vaultChests + b.armory * 4,
   };
 }
 
@@ -90,7 +90,7 @@ function init() {
   resize(); addEventListener('resize', resize);
   G.save = Save.load();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { /* not supported */ }
-  World.reset(G.save.seed);
+  Realm.ensure();
   if (!G.save.run) newRun();
   const r = G.save.run;
   G.p = { x: r.x, y: r.y, hp: r.hp, mp: r.mp ?? 999, r: 16, ang: -Math.PI / 2, dashT: 0, dashCd: 0, dvx: 0, dvy: 0, inv: 0 };
@@ -102,6 +102,7 @@ function init() {
   Art.init();
   Input.init(G.canvas);
   UI.init();
+  Quests.ensure();
   if (!G.save.seenIntro) UI.intro();
   else if (!G.save.cls) UI.classPick(true);
   addEventListener('visibilitychange', () => { if (document.hidden) { persist(); if (!UI.open) UI.act('menu'); } });
@@ -314,7 +315,7 @@ function die() {
   };
   S.gold += kept.gold; S.scrap += kept.scrap;
   S.inv = S.inv.map(s => s && s.kind === 'potion' ? s : null); S.stats.deaths++; S.stats.runs++;
-  S.seed = U.randi(1, 1e9); World.reset(S.seed);
+  S.realm = Realm.make(); S.seed = S.realm.seed; World.reset(S.seed);
   newRun();
   G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.pendingPerks = 0;
   Object.assign(G.p, { x: 0, y: 60, dashT: 0, dashCd: 0, inv: 0 });
@@ -333,7 +334,7 @@ function makeEnemy(type, x, y, lvl, outpost = null) {
   // linear + gentle exponential growth so deeper zones always out-scale you eventually
   const hpMul = (1 + .3 * (lvl - 1)) * Math.pow(1.03, lvl - 1) * (elite ? 3 : 1);
   const e = {
-    type, def: d, x, y, lvl, elite, outpost, boss: type === 'boss',
+    type, def: d, x, y, lvl, elite, outpost, boss: type === 'boss' || type === 'overlord',
     r: d.r * (elite ? 1.3 : 1), hp: d.hp * hpMul, maxHp: d.hp * hpMul,
     speed: d.speed * U.rand(.9, 1.1) * (1 + .02 * Math.min(lvl, 15)), dmg: d.dmg * (1 + .14 * (lvl - 1)) * Math.pow(1.02, lvl - 1) * (elite ? 1.5 : 1), chargeT: 0, windT: 0, cdx: 0, cdy: 0,
     atkCd: U.rand(.5, 1.5), touchCd: 0, hitT: 0, kx: 0, ky: 0, strafe: Math.random() < .5 ? 1 : -1, hx: x, hy: y, dead: false,
@@ -471,10 +472,12 @@ function killEnemy(e, exploded) {
   if (G.decals.length > 70) G.decals.shift();
   Sfx.play('kill');
   run.kills++; G.save.stats.kills++;
+  Quests.progress('kill'); Quests.progress('killType', 1, e.type); if (e.elite) Quests.progress('elite');
   gainXp(Math.round(e.def.xp * (1 + .2 * (e.lvl - 1)) * (e.elite ? 3 : 1)));
   dropLoot(e);
-  if (e.boss && e.outpost) {
-    run.cleared.push(e.outpost); G.save.stats.bosses++;
+  if (e.type === 'overlord') Realm.onBossKilled(e);
+  else if (e.boss && e.outpost) {
+    run.cleared.push(e.outpost); Quests.progress('outpost'); Realm.onOutpostCleared(); G.save.stats.bosses++;
     for (const g of G.enemies) if (g.outpost === e.outpost && !g.dead) g.outpost = null; // guards go feral
     G.active.delete(e.outpost);
     UI.banner('OUTPOST CLEARED', 'Loot dropped!');
@@ -562,7 +565,7 @@ function updatePickups(dt) {
     if (k.kind !== 'weapon' && k.t > .3 && d < st.magnet) { const s = 520 * (1 - d / st.magnet) + 150; k.vx = dx / d * s; k.vy = dy / d * s; }
     k.x += k.vx * dt; k.y += k.vy * dt;
     if (d < p.r + 12 && k.lock <= 0 && k.t > .25) {
-      if (k.kind === 'gold') { run.gold += k.v; S.stats.goldEarned += k.v; k.dead = true; Sfx.play('pick'); }
+      if (k.kind === 'gold') { run.gold += k.v; S.stats.goldEarned += k.v; Quests.progress('gold', k.v); k.dead = true; Sfx.play('pick'); }
       else if (k.kind === 'scrap') { run.scrap += k.v; k.dead = true; addText(k.x, k.y - 10, '+' + k.v + ' ⚙️', '#cfd8dc', 12); Sfx.play('pick'); }
       else if (k.kind === 'potion') {
         if (invAdd(makePotion(k.v))) { k.dead = true; toast(k.v === 'hp' ? '❤️ Health Potion' : '🔷 Mana Potion', POTIONS[k.v].color); Sfx.play('pick'); }
@@ -631,6 +634,7 @@ function update(dt) {
     }
     G.lastZone = z;
     if (z > run.maxZone) run.maxZone = z;
+    Quests.progress('zone', z);
     if (z > S.stats.best) S.stats.best = z;
   }
 
@@ -647,6 +651,8 @@ function update(dt) {
 
   spawnEnemies(dt);
   updateOutposts(dt);
+  Realm.update(dt);
+  G.npc = nearNpc();
   updateEnemies(dt);
   updateBullets(dt);
   updateTurrets(dt);
@@ -684,7 +690,7 @@ function render() {
 
   const vis = (x, y, r) => x + r > cx - hw && x - r < cx + hw && y + r > cy - hh && y - r < cy + hh;
 
-  if (vis(0, 0, HOME_R + 40)) drawHome(ctx);
+  if (vis(0, 0, HOME_R + 40)) { drawHome(ctx); for (const n of NPCS) drawNpc(ctx, n); }
   for (const o of World.outpostsNear(cx, cy, Math.max(hw, hh) + 300)) drawOutpost(ctx, o);
   drawDecals(ctx);
 
@@ -740,12 +746,14 @@ function render() {
   // ---- screen space ----
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // outpost direction arrows
-  for (const [, o] of G.active) {
+  const RB = G.save.realm.boss, arrows = [...G.active.values()].map(o => [o, '#ff2f6b']);
+  if (RB && !RB.killed) arrows.push([RB, '#b388ff']);
+  for (const [o, acol] of arrows) {
     const dx = o.x - p.x, dy = o.y - p.y;
     if (Math.abs(dx) * z < W / 2 - 30 && Math.abs(dy) * z < H / 2 - 30) continue;
     const a = Math.atan2(dy, dx), r = Math.min(W, H) / 2 - 40;
     ctx.save(); ctx.translate(W / 2 + Math.cos(a) * r, H / 2 + Math.sin(a) * r); ctx.rotate(a);
-    ctx.fillStyle = '#ff2f6b'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -9); ctx.lineTo(-8, 9); ctx.fill(); ctx.restore();
+    ctx.fillStyle = acol; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -9); ctx.lineTo(-8, 9); ctx.fill(); ctx.restore();
   }
   // home direction arrow
   if (!G.atHome) {
@@ -805,6 +813,8 @@ function drawMinimap() {
     m.fillStyle = G.save.run.cleared.includes(o.id) ? '#9e9e9e' : '#ff2f6b';
     m.fillRect(ox - 3, oy - 3, 6, 6);
   }
+  const RBm = G.save.realm.boss;
+  if (RBm && !RBm.killed) { const [bx, by] = toM(RBm.x, RBm.y); m.fillStyle = '#b388ff'; m.beginPath(); m.arc(U.clamp(bx, 4, S - 4), U.clamp(by, 4, S - 4), 4, 0, 6.283); m.fill(); }
   m.fillStyle = '#ff5252';
   for (const e of G.enemies) { const [ex, ey] = toM(e.x, e.y); m.fillRect(ex - 1, ey - 1, e.boss ? 4 : 2, e.boss ? 4 : 2); }
   m.fillStyle = '#fff'; m.beginPath(); m.arc(S / 2, S / 2, 3, 0, 6.283); m.fill();
