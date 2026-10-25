@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>Wasteland Rogue</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="hudTop">
+    <div id="bars">
+      <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
+      <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
+      <div class="bar rank"><div id="rankFill"></div><span id="rankText"></span></div>
+    </div>
+    <div id="side">
+      <canvas id="minimap" width="120" height="120"></canvas>
+      <div id="res">
+        <div id="zoneLbl"></div>
+        <div><span>🪙</span><b id="goldTxt">0</b></div>
+        <div><span>⚙️</span><b id="scrapTxt">0</b></div>
+      </div>
+    </div>
+  </div>
+  <div id="topBtns">
+    <button data-act="menu" aria-label="Menu">☰</button>
+    <button data-act="bag" aria-label="Bag">🎒</button>
+    <button data-act="skills" aria-label="Skills">⭐<i id="spBadge"></i></button>
+  </div>
+  <div id="actBtns">
+    <button id="btnHome" data-act="home">🏠<span>Base</span></button>
+    <button id="btnMed" data-act="med">💊<i id="medCount"></i></button>
+    <button id="btnDash" data-act="dash">💨</button>
+  </div>
+  <div id="toasts"></div>
+  <div id="banner"></div>
+</div>
+
+<div id="modal" class="hidden"><div id="panel"></div></div>
+
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/items.js"></script>
+<script src="js/world.js"></script>
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
