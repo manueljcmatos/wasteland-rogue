@@ -605,7 +605,7 @@ const UI = {
     const r = G.save.run;
     p.apply(r.mod); r.perks.push(p.id); G.pendingPerks--;
     recalc();
-    if (p.id === 'hp') G.p.hp += 25;
+    if (p.id === 'hp') G.p.hp += 12;
     this.open = null; $('modal').classList.add('hidden'); G.paused = false;
     if (G.pendingPerks > 0) this.perkChoice();
   },

@@ -58,19 +58,19 @@ const BIOMES = {
 
 // Run perks (roguelike, lost on death)
 const PERKS = [
-  { id: 'dmg',    icon: '💥', name: 'Hollow Points', desc: '+15% damage',            apply: m => m.dmg += .15 },
-  { id: 'rate',   icon: '🔥', name: 'Hair Trigger',  desc: '+12% fire rate',         apply: m => m.rate += .12 },
-  { id: 'hp',     icon: '❤️', name: 'Thick Skin',    desc: '+25 max HP',             apply: m => m.hp += 25 },
-  { id: 'spd',    icon: '👟', name: 'Sprinter',      desc: '+8% move speed',         apply: m => m.spd += .08 },
-  { id: 'crit',   icon: '🎯', name: 'Deadeye',       desc: '+8% crit chance',        apply: m => m.crit += .08 },
-  { id: 'multi',  icon: '🔱', name: 'Split Shot',    desc: '+1 projectile',          apply: m => m.multi += 1, w: .35 },
-  { id: 'pierce', icon: '🗡️', name: 'Penetrator',    desc: '+1 pierce',              apply: m => m.pierce += 1, w: .6 },
-  { id: 'magnet', icon: '🧲', name: 'Magnetism',     desc: '+60% pickup range',      apply: m => m.magnet += .6 },
-  { id: 'regen',  icon: '🩹', name: 'Nanobots',      desc: '+1 HP/s regeneration',   apply: m => m.regen += 1 },
-  { id: 'leech',  icon: '🦇', name: 'Vampiric',      desc: '+2% lifesteal',          apply: m => m.leech += .02 },
-  { id: 'gold',   icon: '💰', name: 'Greed',         desc: '+25% gold found',        apply: m => m.gold += .25 },
-  { id: 'dash',   icon: '💨', name: 'Blink',         desc: '-20% dash cooldown',     apply: m => m.dashCd += .2 },
-  { id: 'thorns', icon: '🌵', name: 'Spikes',        desc: 'Reflect 40% melee damage', apply: m => m.thorns += .4 },
+  { id: 'dmg',    icon: '💥', name: 'Hollow Points', desc: '+7% damage',             apply: m => m.dmg += .07 },
+  { id: 'rate',   icon: '🔥', name: 'Hair Trigger',  desc: '+6% fire rate',          apply: m => m.rate += .06 },
+  { id: 'hp',     icon: '❤️', name: 'Thick Skin',    desc: '+12 max HP',             apply: m => m.hp += 12 },
+  { id: 'spd',    icon: '👟', name: 'Sprinter',      desc: '+4% move speed',         apply: m => m.spd += .04 },
+  { id: 'crit',   icon: '🎯', name: 'Deadeye',       desc: '+4% crit chance',        apply: m => m.crit += .04 },
+  { id: 'multi',  icon: '🔱', name: 'Split Shot',    desc: '+1 projectile',          apply: m => m.multi += 1, w: .12 },
+  { id: 'pierce', icon: '🗡️', name: 'Penetrator',    desc: '+1 pierce',              apply: m => m.pierce += 1, w: .3 },
+  { id: 'magnet', icon: '🧲', name: 'Magnetism',     desc: '+30% pickup range',      apply: m => m.magnet += .3 },
+  { id: 'regen',  icon: '🩹', name: 'Nanobots',      desc: '+0.4 HP/s regeneration', apply: m => m.regen += .4 },
+  { id: 'leech',  icon: '🦇', name: 'Vampiric',      desc: '+1% lifesteal',          apply: m => m.leech += .01 },
+  { id: 'gold',   icon: '💰', name: 'Greed',         desc: '+12% gold found',        apply: m => m.gold += .12 },
+  { id: 'dash',   icon: '💨', name: 'Blink',         desc: '-10% dash cooldown',     apply: m => m.dashCd += .1 },
+  { id: 'thorns', icon: '🌵', name: 'Spikes',        desc: 'Reflect 20% melee damage', apply: m => m.thorns += .2 },
 ];
 
 // Permanent skills (bought with skill points from character levels)
@@ -109,7 +109,7 @@ const BUILD_POS = {
 const buildCost = l => ({ gold: Math.round(120 * Math.pow(2.3, l)), scrap: Math.round(15 * Math.pow(2.1, l)) });
 
 const xpNeed = l => Math.floor(90 * Math.pow(l, 1.8));
-const rankNeed = r => Math.floor(40 + r * 30 + r * r * 4);
+const rankNeed = r => Math.floor(90 + r * 70 + r * r * 12);
 // Danger tiers: every 5 zones the world gets a new name, look and more elites. Endless.
 const TIERS = [
   { from: 1,  name: 'Outskirts', color: '#c5e1a5', tint: null,                  elite: .05 },
