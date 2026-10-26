@@ -1,7 +1,7 @@
 'use strict';
 // Core simulation + rendering.
 const G = {
-  enemies: [], bullets: [], decals: [], bolts: [], recoil: 0, flashT: 0, abCd: 0, potCd: 0,
+  obsHp: new Map(), enemies: [], bullets: [], decals: [], bolts: [], recoil: 0, flashT: 0, abCd: 0, potCd: 0,
   buff: { rapid: 0, crit: 0, spd: 0 }, ebullets: [], pickups: [], parts: [], texts: [], turrets: [],
   active: new Map(), // outpost id -> true while its garrison is spawned
   t: 0, paused: false, zoom: 1, w: 0, h: 0, dpr: 1,
@@ -21,6 +21,7 @@ function resize() {
 function newRun() {
   G.save.run = {
     x: 0, y: 60, hp: -1, gold: 0, scrap: 0, rank: 0, rxp: 0, perks: [], cleared: [], maxZone: 1, kills: 0, time: 0,
+    res: noRes(),
     mod: { dmg: 0, rate: 0, hp: 0, spd: 0, crit: 0, multi: 0, pierce: 0, magnet: 0, regen: 0, leech: 0, gold: 0, dashCd: 0, thorns: 0 },
   };
 }
@@ -96,6 +97,7 @@ async function init() {
   Realm.ensure();
   if (!G.save.run) newRun();
   const r = G.save.run;
+  if (!r.res) r.res = noRes();
   G.p = { x: r.x, y: r.y, hp: r.hp, mp: r.mp ?? 999, r: 16, ang: -Math.PI / 2, dashT: 0, dashCd: 0, dvx: 0, dvy: 0, inv: 0 };
   G.st = computeStats(); recalc();
   if (G.p.hp <= 0) G.p.hp = G.st.maxHp;
@@ -116,12 +118,13 @@ async function init() {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
     Input.update();
     if (!G.paused) update(dt);
+    Mp.update(dt);
     render();
     G.hudT -= dt; if (G.hudT <= 0) { G.hudT = .1; UI.hud(); }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
-  Net.connect();
+  Net.connect().then(() => Mp.connect());
 }
 
 // ---------- helpers ----------
@@ -199,6 +202,7 @@ function finishRecall() {
 }
 
 function updatePortal() {
+  if (G.visit) return;
   const run = G.save.run, pt = run.portal, p = G.p;
   if (!pt) return;
   if (pt.seed !== G.save.seed) { run.portal = null; return; }
@@ -332,9 +336,11 @@ function gainXp(x) {
 // ---------- home ----------
 function enterHome() {
   const run = G.save.run;
-  if (run.gold || run.scrap) {
+  const resTxt = RES_IDS.filter(k => run.res[k]).map(k => ` ${RES_BY_ID[k].icon}${run.res[k]}`).join('');
+  if (run.gold || run.scrap || resTxt) {
     G.save.gold += run.gold; G.save.scrap += run.scrap;
-    toast(t('Banked 🪙{g}  ⚙️{s}', { g: U.fmt(run.gold), s: U.fmt(run.scrap) }), '#ffe082');
+    for (const k of RES_IDS) { G.save.res[k] += run.res[k]; run.res[k] = 0; }
+    toast(t('Banked 🪙{g}  ⚙️{s}', { g: U.fmt(run.gold), s: U.fmt(run.scrap) }) + resTxt, '#ffe082');
     run.gold = 0; run.scrap = 0;
     Sfx.play('buy');
   }
@@ -359,8 +365,9 @@ function die() {
     lostGold: run.gold - kept.gold, lostScrap: run.scrap - kept.scrap, keptGold: kept.gold, keptScrap: kept.scrap, lostItems: S.inv.filter(s => s && s.kind !== 'potion').length,
   };
   S.gold += kept.gold; S.scrap += kept.scrap;
+  for (const k of RES_IDS) S.res[k] += Math.floor(run.res[k] * keep);
   S.inv = S.inv.map(s => s && s.kind === 'potion' ? s : null); S.stats.deaths++; S.stats.runs++;
-  S.realm = Realm.make(); S.seed = S.realm.seed; World.reset(S.seed);
+  World.reset(S.seed, S.realm.cut); // same shared realm; outposts come back for the new run
   newRun();
   G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.pendingPerks = 0;
   Object.assign(G.p, { x: 0, y: 60, dashT: 0, dashCd: 0, inv: 0 });
@@ -532,11 +539,31 @@ function killEnemy(e, exploded) {
   }
 }
 
+// shooting trees and rocks chips them down; destroyed ones drop resources
+function harvest(o, dmg) {
+  const R = OBS_RES[o.kind]; if (!R) return;
+  const z = zoneOf(o.x, o.y), max = R.hp * (1 + .25 * (z - 1));
+  const hp = (G.obsHp.has(o.k) ? G.obsHp.get(o.k) : max) - dmg;
+  if (hp > 0) { G.obsHp.set(o.k, hp); o.hpPct = hp / max; return; }
+  G.obsHp.delete(o.k);
+  World.destroy(o.k);
+  const mult = 1 + .1 * (z - 1);
+  for (const [res, a, b] of R.drops) {
+    const n = Math.round(U.randi(a, b) * mult);
+    if (n > 0) addPickup('res', o.x, o.y, n, res);
+  }
+  burst(o.x, o.y, o.kind === 'tree' || o.kind === 'pine' ? '#6d4c41' : '#9e9e9e', 16, 160, 4);
+  Sfx.play('kill');
+}
+
 function dropLoot(e) {
   const st = G.st, lv = e.lvl;
   const g = Math.round(U.randi(e.def.gold[0], e.def.gold[1]) * (1 + .2 * (lv - 1)) * st.goldMul * (e.elite ? 3 : 1));
   const coins = Math.min(6, Math.max(1, Math.ceil(g / 5)));
   for (let i = 0; i < coins; i++) addPickup('gold', e.x, e.y, Math.max(1, Math.round(g / coins)));
+  if ((e.type === 'brute' || e.type === 'juggernaut') && Math.random() < .3) addPickup('res', e.x, e.y, U.randi(1, 2), 'iron');
+  if (e.elite && Math.random() < .4) addPickup('res', e.x, e.y, 1, 'crystal');
+  if (e.boss && e.type === 'boss') { addPickup('res', e.x, e.y, U.randi(2, 4), 'crystal'); addPickup('res', e.x, e.y, 3, 'iron'); }
   if (Math.random() < (e.elite || e.boss ? 1 : .3)) addPickup('scrap', e.x, e.y, Math.max(1, Math.round(U.randi(1, 3) * (1 + .15 * (lv - 1)) * st.scrapMul)));
   if (Math.random() < (e.elite ? .2 : .02)) addPickup('potion', e.x, e.y, Math.random() < .55 ? 'hp' : 'mp');
   const wc = e.boss ? 1 : e.elite ? .35 : .03;
@@ -563,7 +590,8 @@ function explode(x, y, rad, dmg, fromEnemy) {
 function updateBullets(dt) {
   for (const b of G.bullets) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-    if (World.blocked(b.x, b.y)) { b.life = 0; burst(b.x, b.y, '#ccc', 3, 80, 2); }
+    const ob = World.hitObstacle(b.x, b.y);
+    if (ob) { b.life = 0; burst(b.x, b.y, ob.kind === 'tree' || ob.kind === 'pine' ? '#8d6e63' : '#bdbdbd', 3, 80, 2); if (!b.turret) harvest(ob, b.dmg); }
     if (b.life > 0) for (const e of G.enemies) {
       if (e.dead || b.hit.includes(e)) continue;
       if (U.dist2(b.x, b.y, e.x, e.y) < (e.r + b.r) ** 2) {
@@ -596,7 +624,7 @@ function updateTurrets(dt) {
     if (t.cd > 0) continue;
     t.cd = .45;
     const c = Math.cos(t.ang), s = Math.sin(t.ang);
-    G.bullets.push({ x: t.x + c * 18, y: t.y + s * 18, vx: c * 900, vy: s * 900, life: .7, dmg, crit: false, pierce: 0, r: 4, color: '#80deea', explode: 0, leech: 0, hit: [] });
+    G.bullets.push({ x: t.x + c * 18, y: t.y + s * 18, vx: c * 900, vy: s * 900, life: .7, dmg, crit: false, pierce: 0, r: 4, color: '#80deea', explode: 0, leech: 0, hit: [], turret: true });
   }
 }
 
@@ -611,6 +639,7 @@ function updatePickups(dt) {
     k.x += k.vx * dt; k.y += k.vy * dt;
     if (d < p.r + 12 && k.lock <= 0 && k.t > .25) {
       if (k.kind === 'gold') { run.gold += k.v; S.stats.goldEarned += k.v; Quests.progress('gold', k.v); k.dead = true; Sfx.play('pick'); }
+      else if (k.kind === 'res') { run.res[k.item] += k.v; k.dead = true; addText(k.x, k.y - 10, `+${k.v} ${RES_BY_ID[k.item].icon}`, RES_BY_ID[k.item].color, 12); Sfx.play('pick'); }
       else if (k.kind === 'scrap') { run.scrap += k.v; k.dead = true; addText(k.x, k.y - 10, '+' + k.v + ' ⚙️', '#cfd8dc', 12); Sfx.play('pick'); }
       else if (k.kind === 'potion') {
         if (invAdd(makePotion(k.v))) { k.dead = true; toast(t(k.v === 'hp' ? '❤️ Health Potion' : '🔷 Mana Potion'), POTIONS[k.v].color); Sfx.play('pick'); }
@@ -651,6 +680,7 @@ function update(dt) {
   if (p.dashT > 0) { p.dashT -= dt; spd *= 3.6; mx = p.dvx; my = p.dvy; if (Math.random() < .6) G.parts.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: .2, max: .2, color: 'rgba(120,220,255,.5)', size: p.r }); }
   p.x += mx * spd * dt; p.y += my * spd * dt;
   World.collide(p);
+  if (G.visit) { const d = Math.hypot(p.x, p.y), lim = HOME_R - 30; if (d > lim) { p.x *= lim / d; p.y *= lim / d; } } // can't leave a visited base
   p.dashCd = Math.max(0, p.dashCd - dt); p.inv = Math.max(0, p.inv - dt);
   G.potCd = Math.max(0, G.potCd - dt); G.abCd = Math.max(0, G.abCd - dt);
   if (G.recallT > 0) { G.recallT -= dt; if (G.recallT <= 0) { G.recallT = 0; finishRecall(); } }
@@ -692,13 +722,18 @@ function update(dt) {
     const tgt = S.settings.autoAim && !atHome ? nearestEnemy(p.x, p.y, G.ws.range * .9) : null;
     if (tgt) { p.ang = Math.atan2(tgt.y - p.y, tgt.x - p.x); fire = true; }
     else if (mx || my) p.ang = Math.atan2(my, mx);
+    else if (S.settings.autoAim && !atHome) {
+      // standing still near a tree or rock: harvest it
+      const o = World.nearestObstacle(p.x, p.y, 170);
+      if (o) { p.ang = Math.atan2(o.y - p.y, o.x - p.x); fire = true; }
+    }
   }
   if (fire && G.fireCd <= 0) { shoot(); G.fireCd += 1 / (G.ws.rate * st.rateMul * (G.buff.rapid > 0 ? 2 : 1)); }
 
   spawnEnemies(dt);
   updateOutposts(dt);
   updatePortal();
-  Realm.update(dt);
+  Realm.update();
   G.npc = nearNpc();
   updateEnemies(dt);
   updateBullets(dt);
@@ -737,7 +772,7 @@ function render() {
 
   const vis = (x, y, r) => x + r > cx - hw && x - r < cx + hw && y + r > cy - hh && y - r < cy + hh;
 
-  if (vis(0, 0, HOME_R + 40)) { drawHome(ctx); for (const n of NPCS) drawNpc(ctx, n); if (G.save.run.portal) drawPortal(ctx, PORTAL_POS[0], PORTAL_POS[1], t('🌀 Portal · zone {z}', { z: G.save.run.portal.z })); }
+  if (vis(0, 0, HOME_R + 40)) { drawHome(ctx); if (!G.visit) for (const n of NPCS) drawNpc(ctx, n); if (G.save.run.portal && !G.visit) drawPortal(ctx, PORTAL_POS[0], PORTAL_POS[1], t('🌀 Portal · zone {z}', { z: G.save.run.portal.z })); }
   for (const o of World.outpostsNear(cx, cy, Math.max(hw, hh) + 300)) drawOutpost(ctx, o);
   drawDecals(ctx);
 
@@ -766,11 +801,13 @@ function render() {
   }
   for (const e of G.enemies) if (vis(e.x, e.y, e.r + 10)) drawEnemy(ctx, e);
 
-  for (const t of G.turrets) drawTurret(ctx, t);
+  if (!G.visit) for (const t of G.turrets) drawTurret(ctx, t);
+  for (const o of Mp.others.values()) if (vis(o.x, o.y, 60)) drawOther(ctx, o);
   drawBullets(ctx);
   drawBolts(ctx);
 
   drawPlayer(ctx);
+  if (G.mySayT > 0) { G.mySayT -= 1 / 60; drawBubble(ctx, p.x, p.y - 26, G.mySay); }
   if (G.recallT > 0) {
     const f = 1 - G.recallT / RECALL_TIME;
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,224,130,.35)'; ctx.beginPath(); ctx.arc(p.x, p.y, 30, 0, 6.283); ctx.stroke();
@@ -915,4 +952,20 @@ function drawWorldMap(cv) {
   m.fillStyle = '#fff'; m.strokeStyle = '#000'; m.lineWidth = 2;
   m.beginPath(); m.moveTo(9, 0); m.lineTo(-6, -6); m.lineTo(-3, 0); m.lineTo(-6, 6); m.closePath(); m.stroke(); m.fill();
   m.restore();
+}
+
+// ---------- visiting other players' bases ----------
+async function startVisit(id) {
+  try {
+    const b = await Net.call('GET', '/api/base/' + id);
+    G.visit = b; G.p.x = 0; G.p.y = 300; G.npc = null;
+    UI.close();
+    UI.banner(t('🏰 {n}\'s base', { n: b.name }), t('Level {l} · tap 🏠 to return home', { l: b.level }));
+    Mp.channelChanged(); Sfx.play('level');
+  } catch (e) { UI.toast('⚠️ ' + e.message, '#ff8a80'); }
+}
+function endVisit() {
+  G.visit = null; G.p.x = 0; G.p.y = 60;
+  burst(0, 60, '#b388ff', 20, 160);
+  Mp.channelChanged();
 }

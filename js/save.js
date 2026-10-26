@@ -15,6 +15,7 @@ const Save = {
       inv: [makePotion('hp', 3), makePotion('mp', 2), null, null, null, null, null, null],
       stash: [], cls: null, ap: 0,
       gems: 0, vaultChests: 1, quests: [], realm: null,
+      res: { wood: 0, stone: 0, iron: 0, crystal: 0 },
       attrs: { str: 0, dex: 0, agi: 0, int: 0, vit: 0 },
       seed: U.randi(1, 1e9),
       stats: { kills: 0, runs: 1, deaths: 0, best: 1, bosses: 0, goldEarned: 0 },
@@ -39,7 +40,7 @@ const Save = {
           delete s.bag; delete s.medkits;
         }
         for (const k in d) if (s[k] === undefined) s[k] = d[k];
-        for (const grp of ['skills', 'buildings', 'stats', 'settings', 'attrs', 'gear'])
+        for (const grp of ['skills', 'buildings', 'stats', 'settings', 'attrs', 'gear', 'res'])
           for (const k in d[grp]) if (s[grp][k] === undefined) s[grp][k] = d[grp][k];
         return s;
       }

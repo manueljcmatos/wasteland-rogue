@@ -31,6 +31,7 @@
         <div id="realmLbl"></div>
         <div><span>🪙</span><b id="goldTxt">0</b></div>
         <div><span>⚙️</span><b id="scrapTxt">0</b></div>
+        <div id="resRow"></div>
         <div id="shardRow" style="display:none"><span>☢️</span><b id="shardTxt">0</b></div>
       </div>
     </div>
@@ -39,7 +40,9 @@
     <button data-act="menu" aria-label="Menu">☰</button>
     <button data-act="bag" aria-label="Bag">🎒</button>
     <button data-act="skills" aria-label="Skills">⭐<i id="spBadge"></i></button>
+    <button id="btnChat" data-act="chat" aria-label="Chat" style="display:none">💬</button>
   </div>
+  <div id="chatLog"></div>
   <div id="actBtns">
     <button id="btnHome" data-act="home"><span id="homeLbl">🏠 Base</span></button>
     <button id="btnRecall" data-act="recall"><span id="recallLbl">🏠</span></button>
@@ -68,9 +71,11 @@
 <script src="js/input.js"></script>
 <script src="js/net.js"></script>
 <script src="js/ton.js"></script>
+<script src="js/mp.js"></script>
 <script src="js/realm.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/art.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

@@ -23,9 +23,15 @@ Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.
 
 ## Features
 
+- **Shared world (multiplayer)**: in the Telegram app you see every player in the same realm moving in real time (WebSocket), with names, classes and levels, plus 💬 chat with speech bubbles. Combat and loot stay on each device.
+- **Resources**: 🪵 wood (trees), 🪨 stone and ⛓️ iron (rocks, ruins, brutes), 💠 crystal (elites, Warlords, Overlords). Shoot obstacles or stand next to them to harvest. Building upgrades cost resources.
+- **Trading post** (⚖️ Trader Oto): deposit gold and resources (daily caps), publish market offers, send direct offers to a player, accept/decline; everything escrowed on the server.
+- **Visit other bases** (🌀 Gatekeeper Ilsa): teleport into another player's base and meet whoever is there.
+- **Detailed item icons**: drawn weapons, armor (material changes with rarity), potions and resources, with rarity glow.
+
 - **Return portal**: returning to base opens a 🌀 portal inside the base that takes you back to the exact spot you left (one use).
 - **World map**: tap the minimap for a full map with danger tier rings, outposts, the Overlord and your portal.
-- **Rotating realms** (Realm of the Mad God style): every 15 minutes of play the realm closes and a new procedurally generated map opens with a new name. You are pulled back to base safely and your loot is banked.
+- **Rotating realms** (Realm of the Mad God style): every 15 minutes (wall clock, the same for all players) the realm closes and a new procedurally generated map opens with a new name. You are pulled back to base safely and your loot is banked.
 - **Realm Overlord**: clear 3 outposts in a realm to awaken a 👹 Overlord. Killing it drops top loot and 💎 gems, then the realm collapses.
 - **NPCs at base**: 📜 Commander Vale (quests), 💎 Mystic Zara (gem shop), 🗝️ Keeper Bram (vault), 🔨 Smith Hilda (workshop).
 - **Quests**: 3 active missions (kill, hunt a type, elites, outposts, reach a zone, collect gold, slay an Overlord) with gold, XP, gem and item rewards.
@@ -71,6 +77,8 @@ js/realm.js     rotating realms, Overlord, quests, NPCs
 js/net.js       Telegram Mini App + server connection (Stars purchases, cloud save)
 js/i18n.js      English / Portuguese translations
 js/ton.js       TON Connect wallet linking (library loaded on demand)
+js/mp.js        realtime presence and chat (WebSocket)
+js/icons.js     detailed item and resource icons
 config.js       deployment settings (server URL, bot username)
 server/         backend (see server/README.md)
 js/art.js       all visuals: baked sprites, ground textures, buildings, effects

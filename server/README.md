@@ -9,6 +9,9 @@ Este servidor faz o seguinte:
 - **☢️ Shards:** pontos que vão ser convertidos no token TON (Fase 3). O servidor decide quanto vale cada evento e limita os ganhos por dia (`SHARDS_DAILY_CAP`, 120 por defeito).
 - **Carteira TON:** guarda o endereço que o jogador liga com o TON Connect (um endereço por conta).
 - **Classificação:** os 30 jogadores com mais Shards.
+- **Tempo real (WebSocket em `/ws`):** posições dos jogadores no mesmo reino ou base, 5 vezes por segundo, e chat com limite de 1 mensagem por segundo.
+- **Posto de trocas:** banco de ouro e recursos com limite diário de depósito, mercado com ofertas públicas e trocas diretas entre jogadores, tudo com os bens guardados no servidor até a troca acontecer.
+- **Visitas:** lista de bases e perfil público de cada base (a partir do save na nuvem).
 - **Comandos do bot:** responde a `/start`, `/paysupport` e `/refund` (este último só para o admin).
 
 Não precisa de dependências: Node.js 22.13 ou mais recente, com SQLite incluído.
@@ -39,6 +42,8 @@ Configura estas variáveis de ambiente (ver `.env.example`):
 
 Ao arrancar com `PUBLIC_URL` definido, o servidor faz duas coisas sozinho: regista o webhook no Telegram e põe o botão **Play** no menu do bot.
 Confirma que está online abrindo `https://O-TEU-SERVIDOR/health`, que deve responder `{"ok":true}`.
+
+O alojamento tem de aceitar WebSockets (Railway, Fly.io e Render aceitam).
 
 ## 3. Ligar o jogo ao servidor
 
@@ -103,6 +108,17 @@ Os pacotes estão em `PACKS` no `server.js` e em `GEM_PACKS` no `js/data.js`. Os
 - **Limitado:** diamantes ganhos a jogar (missões e Overlord) são reportados pelo jogo. Por isso há um teto diário (`DAILY_EARN_CAP`, 60 por dia por defeito).
 - **Não protegido:** ouro, itens e nível continuam no telemóvel. É um jogo para um só jogador, por isso batotas aí não custam dinheiro a ninguém. Um modo multijogador exigiria mover a lógica do jogo para o servidor.
 
+## Limites do posto de trocas
+
+| Recurso | Depósito máximo por dia |
+|---|---|
+| Ouro | 20 000 |
+| Madeira, pedra | 1 500 |
+| Ferro | 600 |
+| Cristal | 100 |
+
+Os recursos são ganhos no telemóvel, por isso estes limites impedem que alguém que edite o save inunde o mercado. Ajusta-os em `TRADE_CAPS` no `server.js`.
+
 ## Testes
 
 ```bash
@@ -110,4 +126,4 @@ cd server
 npm test
 ```
 
-Os testes correm o servidor contra um Telegram falso. Cobrem sessões falsificadas, a compra completa com Stars (creditada uma única vez), gastos, limite diário, save na nuvem e reembolsos.
+Os testes correm o servidor contra um Telegram falso. Cobrem sessões falsificadas, a compra completa com Stars (creditada uma única vez), gastos, limites diários, save na nuvem, reembolsos, Shards, carteira, classificação, tempo real (presença e chat), posto de trocas (depósitos, mercado, trocas diretas) e visitas a bases.

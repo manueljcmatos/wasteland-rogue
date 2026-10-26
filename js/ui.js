@@ -1,6 +1,7 @@
 'use strict';
 // DOM menus: HUD, inventory/equipment/attributes, base (buildings / shop / stash / workshop), skills, classes, perks, death.
 const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const QUICK = ['btnDash', 'btnHp', 'btnMp', 'btnAbility'];
 
 const UI = {
@@ -44,9 +45,19 @@ const UI = {
   head(title) { return `<h2><span>${title}</span><button class="x" data-act="close">✕</button></h2>`; },
   wallet() {
     const S = G.save, r = S.run;
-    return `<div class="wallet"><span>🪙 ${U.fmt(S.gold)}${r.gold ? ` <small class="muted">(+${U.fmt(r.gold)} ${t('carried')})</small>` : ''}</span><span>⚙️ ${U.fmt(S.scrap)}${r.scrap ? ` <small class="muted">(+${r.scrap})</small>` : ''}</span><span style="color:#b388ff">💎 ${U.fmt(S.gems)}</span></div>`;
+    return `<div class="wallet"><span>🪙 ${U.fmt(S.gold)}${r.gold ? ` <small class="muted">(+${U.fmt(r.gold)} ${t('carried')})</small>` : ''}</span><span>⚙️ ${U.fmt(S.scrap)}${r.scrap ? ` <small class="muted">(+${r.scrap})</small>` : ''}</span><span style="color:#b388ff">💎 ${U.fmt(S.gems)}</span></div>${this.resHtml(S.res, r.res)}`;
   },
   cls() { return CLASS_BY_ID[G.save.cls] || CLASSES[0]; },
+  // costs in gold, scrap and resources
+  canPay(c) { const S = G.save; return S.gold >= (c.gold || 0) && S.scrap >= (c.scrap || 0) && RES_IDS.every(k => S.res[k] >= (c[k] || 0)); },
+  pay(c) { const S = G.save; S.gold -= c.gold || 0; S.scrap -= c.scrap || 0; for (const k of RES_IDS) S.res[k] -= c[k] || 0; },
+  costHtml(c) {
+    const S = G.save, part = (ok, ic, n) => `<span class="cst${ok ? '' : ' no'}">${ic}${U.fmt(n)}</span>`;
+    return `<span class="cost">${part(S.gold >= c.gold, '🪙', c.gold)}${part(S.scrap >= c.scrap, '⚙️', c.scrap)}${RES_IDS.filter(k => c[k]).map(k => part(S.res[k] >= c[k], `<img src="${Art.resIcon(k)}" alt="">`, c[k])).join('')}</span>`;
+  },
+  resHtml(res, carried) {
+    return `<div class="resline">${RES_IDS.map(k => `<span title="${t(RES_BY_ID[k].name)}"><img src="${Art.resIcon(k)}" alt="">${U.fmt(res[k])}${carried && carried[k] ? `<small> +${carried[k]}</small>` : ''}</span>`).join('')}</div>`;
+  },
 
   toast(msg, color) {
     const d = document.createElement('div');
@@ -73,6 +84,8 @@ const UI = {
     $('rankText').textContent = t('Rank {n} · next perk', { n: r.rank });
     $('goldTxt').textContent = G.atHome ? U.fmt(S.gold) : U.fmt(r.gold);
     $('scrapTxt').textContent = G.atHome ? U.fmt(S.scrap) : U.fmt(r.scrap);
+    const rr = G.atHome ? S.res : r.res, rk = RES_IDS.map(k => rr[k]).join(',');
+    if (rk !== this.lastRes) { this.lastRes = rk; $('resRow').innerHTML = RES_IDS.map(k => `<span><img src="${Art.resIcon(k)}" alt="">${U.fmt(rr[k])}</span>`).join(''); }
     $('shardRow').style.display = Net.on && Net.w ? '' : 'none';
     if (Net.w) $('shardTxt').textContent = U.fmt(Net.w.shards);
     const zl = $('zoneLbl');
@@ -97,9 +110,11 @@ const UI = {
       rc.classList.toggle('poor', r.gold + S.gold < c);
     }
     const qr = Quests.readyCount();
-    $('homeLbl').textContent = G.npc ? t('{i} Talk', { i: G.npc.icon }) : t('🏠 Base') + (qr ? ` · 📜${qr}` : '');
+    $('homeLbl').textContent = G.visit ? t('🏠 Return home') : G.npc ? t('{i} Talk', { i: G.npc.icon }) : t('🏠 Base') + (qr ? ` · 📜${qr}` : '');
+    $('btnChat').style.display = Mp.on ? '' : 'none';
+    if (G.visit) { zl.textContent = t('🏰 {n}\'s base', { n: G.visit.name }); zl.style.color = '#b388ff'; }
     const R = S.realm, left = Realm.timeLeft(), rl = $('realmLbl');
-    rl.textContent = `🌀 ${R.name} · ${U.time(left)}`; rl.classList.toggle('closing', R.closing >= 0);
+    rl.textContent = `🌀 ${R.name} · ${U.time(left)}`; rl.classList.toggle('closing', Realm.closing());
     const q = S.quests.find(x => !x.done);
     $('questTrk').textContent = qr ? (qr === 1 ? t('📜 1 quest ready to claim at base') : t('📜 {n} quests ready to claim at base', { n: qr })) : q ? `${Quests.icon(q)} ${Quests.text(q)} · ${U.fmt(q.prog)}/${U.fmt(q.target)}` : '';
   },
@@ -140,6 +155,7 @@ const UI = {
       case 'bag': this.sel = null; this.show('bag', this.bagHtml()); return;
       case 'skills': this.show('skills', this.skillsHtml()); return;
       case 'home':
+        if (G.visit) { endVisit(); return; }
         if (!G.atHome) return;
         this.sel = null;
         if (G.npc) return this.npc(G.npc.id);
@@ -153,6 +169,15 @@ const UI = {
         if (Net.on) Net.leaderboard().then(b => { this.board = b; if (this.open === 'shards') this.refresh(); }).catch(() => {});
         return;
       case 'tonconnect': Ton.connect(); return;
+      case 'chat': this.show('chat', this.chatHtml()); this.updateChatBox(); setTimeout(() => { const i = $('chatIn'); if (i) i.focus(); }, 50); return;
+      case 'sendchat': { const i = $('chatIn'); if (i && i.value.trim()) { Mp.sendChat(i.value); i.value = ''; } return; }
+      case 'trade': this.tradeTab = this.tradeTab || 'bank'; this.show('trade', this.tradeHtml()); this.loadMarket(); return;
+      case 'ttab': this.tradeTab = d.tab; this.refresh(); this.loadMarket(); return;
+      case 'dep': case 'wd': this.bankMove(a, d.res); return;
+      case 'offer': this.postOffer(); return;
+      case 'accept': case 'decline': case 'cancel': this.offerAction(a === 'accept' ? 'accept' : 'cancel', d.id); return;
+      case 'gate': this.bases = null; this.show('gate', this.gateHtml()); if (Net.on) Net.call('GET', '/api/bases').then(r => { this.bases = r.bases; if (this.open === 'gate') this.refresh(); }).catch(() => {}); return;
+      case 'visit': startVisit(d.id); return;
       case 'tondisconnect': Ton.disconnect().then(() => this.refresh()); return;
       case 'claim': Quests.claim(d.id); break;
       case 'qreroll': Quests.reroll(d.id); break;
@@ -254,8 +279,8 @@ const UI = {
       }
       case 'build': {
         const l = S.buildings[d.id], c = buildCost(l);
-        if (l >= BUILD_MAX || S.gold < c.gold || S.scrap < c.scrap) return;
-        S.gold -= c.gold; S.scrap -= c.scrap; S.buildings[d.id]++;
+        if (l >= BUILD_MAX || !this.canPay(c)) return;
+        this.pay(c); S.buildings[d.id]++;
         recalc(); if (d.id === 'market') rollShop();
         Sfx.play('level');
         this.toast(t('{b} upgraded!', { b: t(BUILDINGS.find(b => b.id === d.id).name) }), '#ffe082');
@@ -328,21 +353,21 @@ const UI = {
     const sel = this.sel && this.sel.w === w && this.sel.k === k ? ' sel' : '';
     if (!it) return `<button class="slot empty${sel}" data-act="sel" data-w="${w}" data-k="${k}">${ph ? `<span class="ph">${ph}</span>` : ''}</button>`;
     const col = it.kind === 'potion' ? POTIONS[it.p].color : RARITIES[it.rarity].color;
-    const ic = Art.icon(it), inner = ic ? `<img src="${ic}" alt="">` : ARMOR_SLOTS[it.slot].icon;
+    const inner = `<img src="${Art.icon(it)}" alt="">`, leg = it.kind !== 'potion' && it.rarity >= 4 ? ' leg' : '';
     const badge = it.kind === 'potion' ? `<b>${it.n}</b>` : `<small>${t('Lv{n}', { n: it.level })}</small>${it.upg ? `<b style="color:${col}">+${it.upg}</b>` : ''}`;
-    return `<button class="slot${sel}" style="border-color:${col};background:${col}22" data-act="sel" data-w="${w}" data-k="${k}">${inner}${badge}</button>`;
+    return `<button class="slot${sel}${leg}" style="--rc:${col}" data-act="sel" data-w="${w}" data-k="${k}">${inner}${badge}</button>`;
   },
 
   icard(it, buttons = '') {
     if (it.kind === 'potion') {
       const P = POTIONS[it.p];
-      return `<div class="card" style="border-color:${P.color}55"><div class="cn" style="color:${P.color}">${t(P.name)} ×${it.n}</div><div class="cs">${t(P.desc)}</div>${buttons ? `<div class="cb">${buttons}</div>` : ''}</div>`;
+      return `<div class="card" style="border-color:${P.color}55"><div class="cn" style="color:${P.color}"><img class="cardicon" src="${Art.icon(it)}" alt="">${t(P.name)} ×${it.n}</div><div class="cs">${t(P.desc)}</div>${buttons ? `<div class="cb">${buttons}</div>` : ''}</div>`;
     }
     if (isWeapon(it)) return this.wcard(it, buttons);
     const r = RARITIES[it.rarity], cur = G.save.gear[it.slot], av = armorValue(it);
     const cmp = !cur ? `<span class="up">${t('NEW')}</span>` : cur === it ? '' : av > armorValue(cur) ? `<span class="up">▲${av - armorValue(cur)}</span>` : av < armorValue(cur) ? `<span class="down">▼${armorValue(cur) - av}</span>` : '';
     return `<div class="card" style="border-color:${r.color}55">
-      <div class="cn" style="color:${r.color}">${ARMOR_SLOTS[it.slot].icon} ${itemName(it)} <small>${t('Lv {n}', { n: it.level })}</small></div>
+      <div class="cn" style="color:${r.color}"><img class="cardicon" src="${Art.icon(it)}" alt="">${itemName(it)} <small>${t('Lv {n}', { n: it.level })}</small></div>
       <div class="cs">${t('🛡️ Armor')} <b>${av}</b> ${cmp}</div>
       ${Object.entries(it.stats).map(([k, v]) => `<div class="af">◆ ${statLabel(k, v)}</div>`).join('')}
       ${buttons ? `<div class="cb">${buttons}</div>` : ''}</div>`;
@@ -353,7 +378,7 @@ const UI = {
     const cmp = w === G.save.equipped ? '' : dps > eq ? `<span class="up">▲${Math.round(dps - eq)}</span>` : dps < eq ? `<span class="down">▼${Math.round(eq - dps)}</span>` : '';
     const n = s.bullets + s.multi;
     return `<div class="card" style="border-color:${r.color}55">
-      <div class="cn" style="color:${r.color}">${weaponName(w)} <small>${t('Lv {n}', { n: w.level })}</small></div>
+      <div class="cn" style="color:${r.color}"><img class="cardicon" src="${Art.icon(w)}" alt="">${weaponName(w)} <small>${t('Lv {n}', { n: w.level })}</small></div>
       <div class="cs">${t('DMG')} ${Math.round(s.dmg)}${n > 1 ? '×' + n : ''} · ${s.rate.toFixed(1)}/s · <b>DPS ${Math.round(dps)}</b> ${cmp}</div>
       ${w.affixes.map(a => `<div class="af">◆ ${AFFIX_BY_ID[a.id].label(a.v)}</div>`).join('')}
       ${buttons ? `<div class="cb">${buttons}</div>` : ''}</div>`;
@@ -420,8 +445,10 @@ const UI = {
     if (I18N.lang === 'pt') return t('HELP');
     return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes, 🏠 returns you to base (costs more gold the further out you are, interrupted if you get hit) and leaves a 🌀 portal at base that takes you back to where you were. Tap the minimap for the 🗺️ world map. ✨ uses your class ability (costs mana), ❤️/🔷 drink health and mana potions.
       The further you roam from base, the higher the <b>zone level</b>: tougher enemies, better loot. The world is endless: every 5 zones is a new danger tier (Outskirts → Badlands → Deadlands → Inferno → The Abyss…) with new enemy types.
+      Shoot trees and rocks (or stand still next to them) to gather 🪵 wood, 🪨 stone and ⛓️ iron; 💠 crystal drops from elites and bosses. Buildings need resources.
+      In the Telegram app you see other players in your realm, 💬 chat, trade at ⚖️ Trader Oto and visit other bases through 🌀 Gatekeeper Ilsa.
       Enemies drop weapons and armor (helmet, armor, pants, boots) with bonus attributes. Each level gives attribute points (🎒) and a skill point (⭐).
-      Every 15 minutes the <b>realm</b> closes and a new map opens (you are pulled back to base safely). Clear 3 outposts to awaken the realm's 👹 <b>Overlord</b>. Talk to NPCs at base for <b>quests</b>, 💎 gems and vault chests.
+      Every 15 minutes the <b>realm</b> closes and a new map opens, the same for every player (you are pulled back to base safely). Clear 3 outposts to awaken the realm's 👹 <b>Overlord</b>. Talk to NPCs at base for <b>quests</b>, 💎 gems and vault chests.
       Clear red <b>outposts</b> by killing their 👑 Warlord. Gold and scrap you carry are only safe once you <b>return to base</b>.
       Dying ends the run: you lose carried loot, the gear in your bag and run perks. Equipped items, potions, level, skills, base and stash remain.
       <br><span class="muted">Desktop: WASD + mouse, Space dash, F ability, H return to base, M map, Q/1 health potion, R/2 mana potion, E base, B bag, K skills.</span>`;
@@ -501,10 +528,10 @@ const UI = {
     const S = G.save, c = this.cls();
     return `<div class="row"><div class="ic">${c.icon}</div><div class="tx"><b>${t('Class: {c}', { c: t(c.name) })}</b><div>${c.ability.icon} ${t(c.ability.name)}</div></div><button class="btn alt" data-act="changecls">${t('Change')}</button></div>` +
       BUILDINGS.map(b => {
-        const l = S.buildings[b.id], cost = buildCost(l), max = l >= BUILD_MAX, can = !max && S.gold >= cost.gold && S.scrap >= cost.scrap;
+        const l = S.buildings[b.id], cost = buildCost(l), max = l >= BUILD_MAX, can = !max && this.canPay(cost);
         return `<div class="row"><div class="ic">${b.icon}</div><div class="tx"><b>${t(b.name)}</b><span class="pips">${'<i class="on"></i>'.repeat(l)}${'<i></i>'.repeat(BUILD_MAX - l)}</span>
           <div>${b.desc(l)}</div>${max ? '' : `<div style="color:#9fd">${t('Next: {d}', { d: b.desc(l + 1) })}</div>`}</div>
-          <button class="btn ${can ? 'good' : ''}" data-act="build" data-id="${b.id}" ${can ? '' : 'disabled'}>${max ? t('MAX') : `🪙${U.fmt(cost.gold)}<br>⚙️${cost.scrap}`}</button></div>`;
+          <button class="btn ${can ? 'good' : ''}" data-act="build" data-id="${b.id}" ${can ? '' : 'disabled'}>${max ? t('MAX') : this.costHtml(cost)}</button></div>`;
       }).join('');
   },
 
@@ -546,6 +573,98 @@ const UI = {
       }).join('')}</div>`;
   },
 
+  // ---------- chat ----------
+  chatLog() {
+    const now = Date.now(), recent = Mp.chat.filter(m => now - m.at < 9000).slice(-4);
+    $('chatLog').innerHTML = recent.map(m => `<div><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`).join('');
+    clearTimeout(this.chatT); if (recent.length) this.chatT = setTimeout(() => this.chatLog(), 3000);
+  },
+  chatLines() { return Mp.chat.length ? Mp.chat.map(m => `<div class="${m.me ? 'me' : ''}"><b>${esc(m.name)}</b> ${esc(m.text)}</div>`).join('') : `<p class="muted">${t('No messages yet. Say hi!')}</p>`; },
+  updateChatBox() { const b = document.querySelector('.chatbox'); if (b) { b.innerHTML = this.chatLines(); b.scrollTop = b.scrollHeight; } },
+  chatHtml() {
+    const n = Mp.others.size;
+    return `${this.head(t('💬 Chat'))}
+      <p class="muted">${G.visit || G.atHome ? t('Talking to players in this base.') : t('Talking to everyone in this realm.')} ${t('{n} player(s) nearby.', { n })}</p>
+      <div class="chatbox">${this.chatLines()}</div>
+      <div class="chatin"><input id="chatIn" maxlength="140" placeholder="${t('Write a message…')}" onkeydown="if(event.key==='Enter'){UI.act('sendchat')}"><button class="btn good" data-act="sendchat">➤</button></div>`;
+  },
+
+  // ---------- trading post ----------
+  tradeIcon(r) { return r === 'gold' ? '🪙' : `<img src="${Art.resIcon(r)}" alt="" class="ri">`; },
+  tradeName(r) { return r === 'gold' ? t('Gold') : t(RES_BY_ID[r].name); },
+  localAmount(r) { return r === 'gold' ? G.save.gold : G.save.res[r]; },
+  loadMarket() {
+    if (!Net.on) return;
+    Net.call('GET', '/api/market').then(m => { this.market = m; if (this.open === 'trade') this.refresh(); }).catch(e => this.toast('⚠️ ' + e.message, '#ff8a80'));
+  },
+  async bankMove(kind, r) {
+    const inp = $('amt-' + r), n = Math.floor(+(inp && inp.value));
+    if (!(n > 0)) return;
+    const S = G.save;
+    try {
+      if (kind === 'dep') {
+        if (this.localAmount(r) < n) { this.toast(t('You do not have that much at your base')); return; }
+        const res = await Net.call('POST', '/api/bank/deposit', { res: r, amount: n });
+        if (r === 'gold') S.gold -= res.credited; else S.res[r] -= res.credited;
+        if (res.credited < n) this.toast(t('Daily deposit limit reached'), '#ffe082');
+      } else {
+        const res = await Net.call('POST', '/api/bank/withdraw', { res: r, amount: n });
+        if (r === 'gold') S.gold += res.withdrawn; else S.res[r] += res.withdrawn;
+      }
+      Sfx.play('buy'); persist(); this.loadMarket();
+    } catch (e) { this.toast('⚠️ ' + e.message, '#ff8a80'); }
+  },
+  async postOffer() {
+    const gr = $('ofGive').value, gn = Math.floor(+$('ofGiveN').value), wr = $('ofWant').value, wn = Math.floor(+$('ofWantN').value), to = $('ofTo').value || null;
+    if (!(gn > 0 && wn > 0) || gr === wr) { this.toast(t('Choose two different resources and amounts')); return; }
+    try { await Net.call('POST', '/api/market/offer', { give: { res: gr, n: gn }, want: { res: wr, n: wn }, to }); this.toast(t('Offer published'), '#ffe082'); Sfx.play('buy'); this.loadMarket(); }
+    catch (e) { this.toast('⚠️ ' + e.message, '#ff8a80'); }
+  },
+  async offerAction(kind, id) {
+    try { await Net.call('POST', '/api/market/' + kind, { id: +id }); Sfx.play('buy'); this.toast(kind === 'accept' ? t('Trade done! Collect it in the Bank tab') : t('Offer closed'), '#ffe082'); this.loadMarket(); }
+    catch (e) { this.toast('⚠️ ' + e.message, '#ff8a80'); this.loadMarket(); }
+  },
+  offerRow(o, buttons) {
+    return `<div class="row offer"><div class="tx"><b>${esc(o.sellerName || '')}</b><div class="swap">${this.tradeIcon(o.give.res)} ${U.fmt(o.give.n)} <span>⇄</span> ${this.tradeIcon(o.want.res)} ${U.fmt(o.want.n)}</div></div>${buttons}</div>`;
+  },
+  tradeHtml() {
+    const head = this.head(t('⚖️ Trader Oto')), tab = this.tradeTab;
+    if (!Net.on) return `${head}<div class="testmode">${t('Trading with other players works inside the Telegram app.')}</div>`;
+    const m = this.market, tabs = [['bank', t('🏦 Bank')], ['market', t('🛒 Market')], ['offers', t('🤝 My trades')]];
+    let body = `<p class="muted">${t('Loading…')}</p>`;
+    if (m) {
+      const all = ['gold', ...RES_IDS], opts = sel => all.map(r => `<option value="${r}" ${r === sel ? 'selected' : ''}>${this.tradeName(r)}</option>`).join('');
+      if (tab === 'bank') body = `<p class="muted">${t('Move gold and resources between your base and the trading post. Only what is in the trading post can be traded.')}</p>` +
+        all.map(r => `<div class="row"><div class="ic">${this.tradeIcon(r)}</div><div class="tx"><b>${this.tradeName(r)}</b><div>${t('Base {a} · Post {b}', { a: U.fmt(this.localAmount(r)), b: U.fmt(m.bank[r]) })}</div><div class="muted" style="font-size:11px">${t('Deposited today {a}/{b}', { a: U.fmt(m.deposited[r]), b: U.fmt(m.caps[r]) })}</div></div>
+          <div class="bankctl"><input id="amt-${r}" type="number" min="1" inputmode="numeric" placeholder="0"><button class="btn" data-act="dep" data-res="${r}">⬆</button><button class="btn alt" data-act="wd" data-res="${r}">⬇</button></div></div>`).join('');
+      else if (tab === 'market') body = `<h3>${t('Create an offer')}</h3>
+          <div class="offerform"><label>${t('I give')}</label><select id="ofGive">${opts('wood')}</select><input id="ofGiveN" type="number" min="1" inputmode="numeric" value="50">
+          <label>${t('I want')}</label><select id="ofWant">${opts('gold')}</select><input id="ofWantN" type="number" min="1" inputmode="numeric" value="100">
+          <label>${t('To')}</label><select id="ofTo"><option value="">${t('Everyone (market)')}</option>${[...Mp.others.values()].map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select></div>
+          <button class="btn big good" data-act="offer">${t('Publish offer')}</button>
+          <h3>${t('Offers from other players')}</h3>
+          ${m.public.length ? m.public.map(o => this.offerRow(o, `<button class="btn good" data-act="accept" data-id="${o.id}" ${m.bank[o.want.res] >= o.want.n ? '' : 'disabled'}>${t('Accept')}</button>`)).join('') : `<p class="muted">${t('No offers right now.')}</p>`}`;
+      else body = `<h3>${t('Offers sent to you')}</h3>
+          ${m.forMe.length ? m.forMe.map(o => this.offerRow(o, `<div class="cb"><button class="btn good" data-act="accept" data-id="${o.id}" ${m.bank[o.want.res] >= o.want.n ? '' : 'disabled'}>${t('Accept')}</button><button class="btn alt" data-act="decline" data-id="${o.id}">${t('Decline')}</button></div>`)).join('') : `<p class="muted">${t('None.')}</p>`}
+          <h3>${t('Your open offers')}</h3>
+          ${m.mine.length ? m.mine.map(o => this.offerRow({ ...o, sellerName: o.target ? t('Direct offer') : t('Market') }, `<button class="btn alt" data-act="cancel" data-id="${o.id}">${t('Cancel')}</button>`)).join('') : `<p class="muted">${t('None.')}</p>`}`;
+    }
+    return `${head}<div class="npc-say">“${t('Wood, stone, iron, crystal… everything has a price. Leave your goods with me and trade with anyone in Tyra.')}”</div>
+      <div class="tabs">${tabs.map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="ttab" data-tab="${k}">${n}</button>`).join('')}</div>${body}`;
+  },
+
+  // ---------- gatekeeper: visit other players' bases ----------
+  gateHtml() {
+    const head = this.head(t('🌀 Gatekeeper Ilsa'));
+    if (!Net.on) return `${head}<div class="testmode">${t('Visiting other bases works inside the Telegram app.')}</div>`;
+    const b = this.bases;
+    return `${head}<div class="npc-say">“${t('My gates reach every base in Tyra. Whose home do you wish to see?')}”</div>
+      ${!b ? `<p class="muted">${t('Loading…')}</p>` : b.length ? b.map(x => {
+        const c = CLASS_BY_ID[x.cls] || CLASSES[0], lv = Object.values(x.buildings || {}).reduce((s, v) => s + (+v || 0), 0);
+        return `<div class="row"><div class="ic">${c.icon}</div><div class="tx"><b>${x.online ? '🟢 ' : ''}${esc(x.name)}</b><div>${t('Level {l} · {c} · base level {b}', { l: x.level, c: t(c.name), b: lv })}</div></div><button class="btn" data-act="visit" data-id="${esc(x.id)}">${t('Visit')}</button></div>`;
+      }).join('') : `<p class="muted">${t('No other bases yet.')}</p>`}`;
+  },
+
   // ---------- world map ----------
   mapHtml() {
     const sz = Math.min(innerWidth - 56, innerHeight - 190, 560);
@@ -560,6 +679,8 @@ const UI = {
     if (id === 'quest') return this.act('quests');
     if (id === 'gems') return this.act('gemshop');
     if (id === 'oracle') return this.act('shards');
+    if (id === 'trade') return this.act('trade');
+    if (id === 'gate') return this.act('gate');
     this.homeTab = id === 'vault' ? 'stash' : 'work';
     this.show('home', this.homeHtml());
   },

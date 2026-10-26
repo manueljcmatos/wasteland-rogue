@@ -106,7 +106,11 @@ const BUILD_POS = {
   market: [0, -230], vault: [-175, -130], clinic: [175, -130], armory: [-230, 50],
   workshop: [230, 50], radar: [-150, 210], garden: [150, 210], turrets: [0, 250],
 };
-const buildCost = l => ({ gold: Math.round(120 * Math.pow(2.3, l)), scrap: Math.round(15 * Math.pow(2.1, l)) });
+const buildCost = l => ({
+  gold: Math.round(120 * Math.pow(2.3, l)), scrap: Math.round(15 * Math.pow(2.1, l)),
+  wood: Math.round(25 * Math.pow(1.9, l)), stone: l >= 1 ? Math.round(15 * Math.pow(1.9, l - 1)) : 0,
+  iron: l >= 3 ? Math.round(8 * Math.pow(1.8, l - 3)) : 0, crystal: l >= 5 ? Math.round(3 * Math.pow(1.7, l - 5)) : 0,
+});
 
 const xpNeed = l => Math.floor(90 * Math.pow(l, 1.8));
 const rankNeed = r => Math.floor(90 + r * 70 + r * r * 12);
@@ -184,3 +188,21 @@ const GEM_PACKS = [
   { id: 'p550',  gems: 550,  stars: 350, bonus: '+10%' },
   { id: 'p1200', gems: 1200, stars: 700, bonus: '+20%' },
 ];
+
+// ---------- resources: harvested from the world, used for buildings and traded with other players ----------
+const RESOURCES = [
+  { id: 'wood',    icon: '🪵', name: 'Wood',    color: '#bcaaa4' },
+  { id: 'stone',   icon: '🪨', name: 'Stone',   color: '#bdbdbd' },
+  { id: 'iron',    icon: '⛓️', name: 'Iron',    color: '#90a4ae' },
+  { id: 'crystal', icon: '💠', name: 'Crystal', color: '#4dd0e1' },
+];
+const RES_IDS = RESOURCES.map(r => r.id);
+const RES_BY_ID = Object.fromEntries(RESOURCES.map(r => [r.id, r]));
+const noRes = () => ({ wood: 0, stone: 0, iron: 0, crystal: 0 });
+// what each obstacle drops when destroyed: [resource, min, max]
+const OBS_RES = {
+  tree:   { hp: 45,  drops: [['wood', 2, 4]] },
+  pine:   { hp: 45,  drops: [['wood', 2, 4]] },
+  rock:   { hp: 100, drops: [['stone', 2, 4], ['iron', 0, 1]] },
+  rubble: { hp: 80,  drops: [['stone', 1, 3], ['iron', 1, 2]] },
+};

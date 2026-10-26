@@ -5,7 +5,15 @@ const World = {
   seed: 1,
   cache: new Map(),
 
-  reset(seed) { this.seed = seed; this.cache.clear(); },
+  destroyed: new Set(), cut: [],
+  // cut = tile keys of trees/rocks harvested in this realm (saved with the realm)
+  reset(seed, cut = []) { this.seed = seed; this.cache.clear(); this.cut = cut; this.destroyed = new Set(cut); },
+  destroy(k) {
+    if (this.destroyed.has(k)) return;
+    this.destroyed.add(k); this.cut.push(k);
+    if (this.cut.length > 4000) this.destroyed.delete(this.cut.shift());
+    const c = this.cache.get(k); if (c) c.obs = null;
+  },
 
   biomeAt(x, y) {
     const s = this.seed;
@@ -27,9 +35,9 @@ const World = {
     const sh = (U.hash(tx, ty, this.seed + 13) - .5) * 14;
     const col = `rgb(${(B.c[0] + sh) | 0},${(B.c[1] + sh) | 0},${(B.c[2] + sh) | 0})`;
     let obs = null;
-    if (Math.hypot(cx, cy) > HOME_R + 120 && U.hash(tx, ty, this.seed + 7) < B.dens && !this.nearOutpost(cx, cy, 230)) {
+    if (!this.destroyed.has(k) && Math.hypot(cx, cy) > HOME_R + 120 && U.hash(tx, ty, this.seed + 7) < B.dens && !this.nearOutpost(cx, cy, 230)) {
       const h2 = U.hash(tx, ty, this.seed + 21);
-      obs = { x: cx + (h2 - .5) * 24, y: cy + (U.hash(tx, ty, this.seed + 22) - .5) * 24, r: 16 + h2 * 12, kind: B.obs, rot: h2 * 6 };
+      obs = { x: cx + (h2 - .5) * 24, y: cy + (U.hash(tx, ty, this.seed + 22) - .5) * 24, r: 16 + h2 * 12, kind: B.obs, rot: h2 * 6, k };
     }
     c = { col, b, obs, v: Math.floor(U.hash(tx, ty, this.seed + 3) * 4) };
     if (this.cache.size > 40000) this.cache.clear();
@@ -57,6 +65,26 @@ const World = {
   },
 
   nearOutpost(x, y, r) { return this.outpostsNear(x, y, r).length > 0; },
+
+  hitObstacle(x, y) {
+    const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const o = this.tile(tx + i, ty + j).obs;
+      if (o && U.dist2(x, y, o.x, o.y) < o.r * o.r) return o;
+    }
+    return null;
+  },
+  nearestObstacle(x, y, rad) {
+    let best = null, bd = rad * rad;
+    const n = Math.ceil(rad / TILE), tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+      const o = this.tile(tx + i, ty + j).obs;
+      if (!o) continue;
+      const d = U.dist2(x, y, o.x, o.y);
+      if (d < bd) { bd = d; best = o; }
+    }
+    return best;
+  },
 
   blocked(x, y) {
     const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);

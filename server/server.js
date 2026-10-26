@@ -37,6 +37,11 @@ const MAX_CHESTS = 10;
 // ☢️ Shards: off-chain points that will later convert to the TON token (phase 3).
 // The client reports events; the server decides the amount and enforces a daily cap.
 const SHARD_EVENTS = { overlord: 25, quest: 5, outpost: 3, zone: 4 };
+// Trading post: what can be traded, and how much of it a player can deposit per day.
+// Resources are earned on the player's device, so deposits are capped to limit forged amounts.
+const TRADE_CAPS = { gold: 20000, wood: 1500, stone: 1500, iron: 600, crystal: 100 };
+const TRADE_RES = Object.keys(TRADE_CAPS);
+const MAX_OPEN_OFFERS = 10;
 const SPEND = {
   chest: u => (u.vault_chests >= MAX_CHESTS ? null : 50 * u.vault_chests),
   gold: () => 30,
@@ -65,6 +70,14 @@ const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
 for (const [c, def] of [['shards', 'INTEGER NOT NULL DEFAULT 0'], ['shard_day', 'TEXT'], ['shards_today', 'INTEGER NOT NULL DEFAULT 0'], ['best_zone', 'INTEGER NOT NULL DEFAULT 1'], ['wallet', 'TEXT']])
   if (!cols.includes(c)) db.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_wallet ON users(wallet) WHERE wallet IS NOT NULL');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bank (user_id TEXT NOT NULL, res TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, res));
+  CREATE TABLE IF NOT EXISTS deposits (user_id TEXT NOT NULL, day TEXT NOT NULL, res TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day, res));
+  CREATE TABLE IF NOT EXISTS offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, seller TEXT NOT NULL, seller_name TEXT, give_res TEXT, give_n INTEGER, want_res TEXT, want_n INTEGER,
+    target TEXT, status TEXT NOT NULL DEFAULT 'open', buyer TEXT, created_at INTEGER, closed_at INTEGER);
+  CREATE INDEX IF NOT EXISTS offers_open ON offers(status, target);
+`);
 const q = {
   getUser: db.prepare('SELECT * FROM users WHERE id = ?'),
   addUser: db.prepare('INSERT OR IGNORE INTO users (id, name, created_at) VALUES (?, ?, ?)'),
@@ -82,6 +95,21 @@ const q = {
   walletOwner: db.prepare('SELECT id FROM users WHERE wallet = ?'),
   top: db.prepare('SELECT id, name, shards FROM users WHERE shards > 0 ORDER BY shards DESC, id LIMIT 30'),
   rankOf: db.prepare('SELECT COUNT(*) AS n FROM users WHERE shards > ?'),
+  bankGet: db.prepare('SELECT amount FROM bank WHERE user_id = ? AND res = ?'),
+  bankAll: db.prepare('SELECT res, amount FROM bank WHERE user_id = ?'),
+  bankAdd: db.prepare('INSERT INTO bank (user_id, res, amount) VALUES (?, ?, ?) ON CONFLICT(user_id, res) DO UPDATE SET amount = amount + excluded.amount'),
+  depGet: db.prepare('SELECT amount FROM deposits WHERE user_id = ? AND day = ? AND res = ?'),
+  depAll: db.prepare('SELECT res, amount FROM deposits WHERE user_id = ? AND day = ?'),
+  depAdd: db.prepare('INSERT INTO deposits (user_id, day, res, amount) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, day, res) DO UPDATE SET amount = amount + excluded.amount'),
+  offerAdd: db.prepare('INSERT INTO offers (seller, seller_name, give_res, give_n, want_res, want_n, target, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+  offerGet: db.prepare('SELECT * FROM offers WHERE id = ?'),
+  offerClose: db.prepare("UPDATE offers SET status = ?, buyer = ?, closed_at = ? WHERE id = ? AND status = 'open'"),
+  offersPublic: db.prepare("SELECT * FROM offers WHERE status = 'open' AND target IS NULL ORDER BY id DESC LIMIT 50"),
+  offersMine: db.prepare("SELECT * FROM offers WHERE status = 'open' AND seller = ? ORDER BY id DESC"),
+  offersForMe: db.prepare("SELECT * FROM offers WHERE status = 'open' AND target = ? ORDER BY id DESC"),
+  openCount: db.prepare("SELECT COUNT(*) AS n FROM offers WHERE status = 'open' AND seller = ?"),
+  recentSaves: db.prepare('SELECT s.user_id, s.data, s.saved_at, u.name FROM saves s JOIN users u ON u.id = s.user_id ORDER BY s.saved_at DESC LIMIT 40'),
+  userName: db.prepare('SELECT name FROM users WHERE id = ?'),
   getSave: db.prepare('SELECT data, saved_at FROM saves WHERE user_id = ?'),
   putSave: db.prepare('INSERT INTO saves (user_id, data, saved_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at'),
 };
@@ -105,6 +133,22 @@ function wallet(u) {
   const shardsToday = u.shard_day === today() ? u.shards_today : 0;
   return { gems: u.gems, vaultChests: u.vault_chests, earnedToday: earned, earnCap: CFG.earnCap,
     shards: u.shards, shardsToday, shardCap: CFG.shardCap, wallet: u.wallet };
+}
+
+// ---------- trading post helpers ----------
+const bankOf = uid => Object.fromEntries(TRADE_RES.map(r => [r, (q.bankGet.get(uid, r) || { amount: 0 }).amount]));
+function bankView(uid) {
+  const day = today(), used = Object.fromEntries(q.depAll.all(uid, day).map(r => [r.res, r.amount]));
+  return { bank: bankOf(uid), deposited: Object.fromEntries(TRADE_RES.map(r => [r, used[r] || 0])), caps: TRADE_CAPS };
+}
+const offerView = o => ({ id: o.id, seller: o.seller, sellerName: o.seller_name, give: { res: o.give_res, n: o.give_n }, want: { res: o.want_res, n: o.want_n }, target: o.target, at: o.created_at });
+const validAmount = n => Number.isInteger(n) && n > 0 && n <= 1e7;
+// public profile of a base, read from the player's cloud save
+function baseProfile(userId, data) {
+  try {
+    const s = JSON.parse(data);
+    return { id: userId, level: s.level | 0, cls: s.cls || 'soldier', buildings: s.buildings || {}, best: (s.stats && s.stats.best) | 0 };
+  } catch { return null; }
 }
 
 // ---------- Telegram ----------
@@ -237,6 +281,83 @@ async function api(req, res, origin, route) {
     return send(res, 200, { top: rows, myRank: u.shards > 0 ? q.rankOf.get(u.shards).n + 1 : null, myShards: u.shards }, origin);
   }
 
+  // ----- trading post -----
+  if (route === 'GET /api/bank') return send(res, 200, bankView(u.id), origin);
+  if (route === 'POST /api/bank/deposit') {
+    const r = body.res, n = Math.floor(+body.amount);
+    if (!TRADE_RES.includes(r) || !validAmount(n)) return send(res, 400, { error: 'invalid deposit' }, origin);
+    const day = today(), used = (q.depGet.get(u.id, day, r) || { amount: 0 }).amount;
+    const credited = Math.min(n, TRADE_CAPS[r] - used);
+    if (credited > 0) tx(() => { q.bankAdd.run(u.id, r, credited); q.depAdd.run(u.id, day, r, credited); });
+    return send(res, 200, { credited, ...bankView(u.id) }, origin);
+  }
+  if (route === 'POST /api/bank/withdraw') {
+    const r = body.res, n = Math.floor(+body.amount);
+    if (!TRADE_RES.includes(r) || !validAmount(n)) return send(res, 400, { error: 'invalid withdrawal' }, origin);
+    if (bankOf(u.id)[r] < n) return send(res, 402, { error: 'not enough in the trading post' }, origin);
+    q.bankAdd.run(u.id, r, -n);
+    return send(res, 200, { withdrawn: n, ...bankView(u.id) }, origin);
+  }
+  if (route === 'GET /api/market') {
+    return send(res, 200, {
+      public: q.offersPublic.all().filter(o => o.seller !== u.id).map(offerView),
+      mine: q.offersMine.all(u.id).map(offerView),
+      forMe: q.offersForMe.all(u.id).map(offerView),
+      ...bankView(u.id),
+    }, origin);
+  }
+  if (route === 'POST /api/market/offer') {
+    const g = body.give || {}, w = body.want || {}, gn = Math.floor(+g.n), wn = Math.floor(+w.n);
+    const target = body.to == null ? null : String(body.to);
+    if (!TRADE_RES.includes(g.res) || !TRADE_RES.includes(w.res) || g.res === w.res || !validAmount(gn) || !validAmount(wn)) return send(res, 400, { error: 'invalid offer' }, origin);
+    if (target && (target === u.id || !q.getUser.get(target))) return send(res, 400, { error: 'unknown player' }, origin);
+    if (q.openCount.get(u.id).n >= MAX_OPEN_OFFERS) return send(res, 400, { error: 'too many open offers' }, origin);
+    if (bankOf(u.id)[g.res] < gn) return send(res, 402, { error: 'not enough in the trading post' }, origin);
+    const id = tx(() => { q.bankAdd.run(u.id, g.res, -gn); return q.offerAdd.run(u.id, u.name || 'Player', g.res, gn, w.res, wn, target, Date.now()).lastInsertRowid; });
+    return send(res, 200, { id: Number(id), ...bankView(u.id) }, origin);
+  }
+  if (route === 'POST /api/market/accept') {
+    const o = q.offerGet.get(Math.floor(+body.id));
+    if (!o || o.status !== 'open') return send(res, 404, { error: 'offer no longer available' }, origin);
+    if (o.seller === u.id || (o.target && o.target !== u.id)) return send(res, 403, { error: 'not your offer to accept' }, origin);
+    if (bankOf(u.id)[o.want_res] < o.want_n) return send(res, 402, { error: 'not enough in the trading post' }, origin);
+    tx(() => {
+      if (!q.offerClose.run('done', u.id, Date.now(), o.id).changes) throw new Error('race');
+      q.bankAdd.run(u.id, o.want_res, -o.want_n); q.bankAdd.run(o.seller, o.want_res, o.want_n);
+      q.bankAdd.run(u.id, o.give_res, o.give_n);
+    });
+    const seller = online.get(o.seller);
+    if (seller) seller.ws.send(JSON.stringify({ t: 'trade', id: o.id, by: u.name || 'Player' }));
+    return send(res, 200, { ok: true, ...bankView(u.id) }, origin);
+  }
+  if (route === 'POST /api/market/cancel') {
+    const o = q.offerGet.get(Math.floor(+body.id));
+    if (!o || o.status !== 'open') return send(res, 404, { error: 'offer no longer available' }, origin);
+    if (o.seller !== u.id && o.target !== u.id) return send(res, 403, { error: 'not your offer' }, origin);
+    tx(() => { q.offerClose.run(o.seller === u.id ? 'cancelled' : 'declined', null, Date.now(), o.id); q.bankAdd.run(o.seller, o.give_res, o.give_n); });
+    return send(res, 200, { ok: true, ...bankView(u.id) }, origin);
+  }
+
+  // ----- visiting other players' bases -----
+  if (route === 'GET /api/bases') {
+    const list = [], seen = new Set();
+    for (const r of q.recentSaves.all()) {
+      if (r.user_id === u.id) continue;
+      const p = baseProfile(r.user_id, r.data); if (!p) continue;
+      seen.add(r.user_id);
+      list.push({ ...p, name: (r.name || 'Player').slice(0, 24), online: online.has(r.user_id) });
+    }
+    for (const c of online.values()) if (c.id !== u.id && !seen.has(c.id)) list.push({ id: c.id, name: c.name, level: c.lvl, cls: c.cls, buildings: {}, online: true });
+    list.sort((a, b) => (b.online - a.online) || (b.level - a.level));
+    return send(res, 200, { bases: list.slice(0, 40) }, origin);
+  }
+  if (route.startsWith('GET /api/base/')) {
+    const id = route.slice('GET /api/base/'.length);
+    const s = /^\d{1,15}$/.test(id) && q.getSave.get(id), p = s && baseProfile(id, s.data);
+    if (!p) return send(res, 404, { error: 'base not found' }, origin);
+    return send(res, 200, { ...p, name: ((q.userName.get(id) || {}).name || 'Player').slice(0, 24), online: online.has(id) }, origin);
+  }
+
   if (route === 'GET /api/save') {
     const s = q.getSave.get(u.id);
     return send(res, 200, s ? { data: s.data, savedAt: s.saved_at } : { data: null, savedAt: 0 }, origin);
@@ -329,6 +450,60 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// ---------- realtime: presence + chat over WebSocket ----------
+// Each client is in one channel: "realm:<id>" (out in the shared world) or "base:<owner id>" (inside a base).
+// Positions are relayed 5 times per second to everyone in the same channel. Combat stays on each device.
+const { upgrade } = require('./ws.js');
+const online = new Map(); // telegram user id -> client
+const CLASS_IDS = ['soldier', 'ranger', 'mage', 'guardian', 'scout'];
+const num = (v, lim) => (Number.isFinite(+v) ? Math.max(-lim, Math.min(lim, +v)) : 0);
+
+server.on('upgrade', (req, socket) => {
+  const url = new URL(req.url, 'http://localhost');
+  if (url.pathname !== '/ws') return socket.destroy();
+  const origin = req.headers.origin;
+  if (origin && CFG.origins.length && !CFG.origins.includes(origin) && !CFG.origins.includes('*')) return socket.destroy();
+  const user = verifyInitData(url.searchParams.get('auth'));
+  if (!user) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); return socket.destroy(); }
+  const ws = upgrade(req, socket);
+  if (!ws) return;
+  ensureUser(user);
+  const id = String(user.id), prev = online.get(id);
+  if (prev) prev.ws.close(4000); // one live connection per account
+  const c = { id, name: String(user.first_name || user.username || 'Player').slice(0, 20), ws, ch: null, x: 0, y: 0, a: 0, cls: 'soldier', lvl: 1, chatAt: 0 };
+  online.set(id, c);
+  ws.on('message', raw => { let m; try { m = JSON.parse(raw); } catch { return; } onWs(c, m); });
+  ws.on('close', () => { if (online.get(id) === c) online.delete(id); });
+  ws.send(JSON.stringify({ t: 'hello', id }));
+});
+
+function onWs(c, m) {
+  if (m.t === 'join' && typeof m.ch === 'string' && /^(realm:\d{1,12}|base:\d{1,15})$/.test(m.ch)) {
+    c.ch = m.ch;
+    if (CLASS_IDS.includes(m.cls)) c.cls = m.cls;
+    c.lvl = Math.max(1, Math.min(9999, Math.floor(+m.lvl || 1)));
+    c.x = num(m.x, 1e7); c.y = num(m.y, 1e7);
+  } else if (m.t === 'pos') {
+    c.x = num(m.x, 1e7); c.y = num(m.y, 1e7); c.a = num(m.a, 10);
+  } else if (m.t === 'chat' && c.ch) {
+    const text = String(m.text || '').replace(/\s+/g, ' ').trim().slice(0, 140), now = Date.now();
+    if (!text || now - c.chatAt < 1000) return;
+    c.chatAt = now;
+    const out = JSON.stringify({ t: 'chat', id: c.id, name: c.name, text });
+    for (const o of online.values()) if (o.ch === c.ch) o.ws.send(out);
+  }
+}
+
+setInterval(() => {
+  const chans = new Map();
+  for (const c of online.values()) if (c.ch) { if (!chans.has(c.ch)) chans.set(c.ch, []); chans.get(c.ch).push(c); }
+  for (const list of chans.values()) {
+    if (list.length < 2) continue;
+    const snap = JSON.stringify({ t: 'snap', p: list.slice(0, 60).map(c => [c.id, c.name, c.cls, c.lvl, Math.round(c.x), Math.round(c.y), Math.round(c.a * 100) / 100]) });
+    for (const c of list) c.ws.send(snap);
+  }
+}, 200).unref();
+
 server.listen(CFG.port, async () => {
   console.log(`Realms of Tyra server on :${CFG.port}`);
   if (CFG.publicUrl) {
@@ -340,4 +515,4 @@ server.listen(CFG.port, async () => {
   }
 });
 
-module.exports = { server, verifyInitData, PACKS };
+module.exports = { server, verifyInitData, PACKS, online };

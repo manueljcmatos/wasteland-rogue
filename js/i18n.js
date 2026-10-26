@@ -27,6 +27,26 @@ const I18N = {
     '🌀 Portal · zone {z}': '🌀 Portal · zona {z}',
     '🗺️ World map': '🗺️ Mapa do mundo',
     '+{n} ☢️ Shards': '+{n} ☢️ Shards',
+    'Wood': 'Madeira', 'Stone': 'Pedra', 'Iron': 'Ferro', 'Crystal': 'Cristal', 'Gold': 'Ouro',
+    '⚖️ {n} accepted your trade offer!': '⚖️ {n} aceitou a tua oferta de troca!',
+    '🏠 Return home': '🏠 Voltar a casa', "🏰 {n}'s base": '🏰 Base de {n}', 'Level {l} · tap 🏠 to return home': 'Nível {l} · toca em 🏠 para voltar a casa',
+    '💬 Chat': '💬 Chat', 'Talking to players in this base.': 'A falar com os jogadores nesta base.', 'Talking to everyone in this realm.': 'A falar com todos neste reino.',
+    '{n} player(s) nearby.': '{n} jogador(es) por perto.', 'No messages yet. Say hi!': 'Ainda não há mensagens. Diz olá!', 'Write a message…': 'Escreve uma mensagem…',
+    '⚖️ Trader Oto': '⚖️ Mercador Oto', 'Trading with other players works inside the Telegram app.': 'As trocas com outros jogadores funcionam dentro da app do Telegram.',
+    '🏦 Bank': '🏦 Banco', '🛒 Market': '🛒 Mercado', '🤝 My trades': '🤝 As minhas trocas',
+    'Move gold and resources between your base and the trading post. Only what is in the trading post can be traded.': 'Move ouro e recursos entre a tua base e o posto de trocas. Só o que está no posto pode ser trocado.',
+    'Base {a} · Post {b}': 'Base {a} · Posto {b}', 'Deposited today {a}/{b}': 'Depositado hoje {a}/{b}',
+    'You do not have that much at your base': 'Não tens tanto na tua base', 'Daily deposit limit reached': 'Limite diário de depósito atingido',
+    'Choose two different resources and amounts': 'Escolhe dois recursos diferentes e as quantidades', 'Offer published': 'Oferta publicada',
+    'Trade done! Collect it in the Bank tab': 'Troca feita! Levanta-a no separador Banco', 'Offer closed': 'Oferta fechada',
+    'Create an offer': 'Criar uma oferta', 'I give': 'Dou', 'I want': 'Quero', 'To': 'Para', 'Everyone (market)': 'Todos (mercado)', 'Publish offer': 'Publicar oferta',
+    'Offers from other players': 'Ofertas de outros jogadores', 'Accept': 'Aceitar', 'No offers right now.': 'Não há ofertas agora.',
+    'Offers sent to you': 'Ofertas enviadas para ti', 'Decline': 'Recusar', 'None.': 'Nenhuma.', 'Your open offers': 'As tuas ofertas abertas',
+    'Direct offer': 'Oferta direta', 'Market': 'Mercado', 'Cancel': 'Cancelar',
+    'Wood, stone, iron, crystal… everything has a price. Leave your goods with me and trade with anyone in Tyra.': 'Madeira, pedra, ferro, cristal… tudo tem um preço. Deixa os teus bens comigo e troca com qualquer pessoa em Tyra.',
+    '🌀 Gatekeeper Ilsa': '🌀 Guardiã Ilsa', 'Visiting other bases works inside the Telegram app.': 'Visitar outras bases funciona dentro da app do Telegram.',
+    'My gates reach every base in Tyra. Whose home do you wish to see?': 'Os meus portais chegam a todas as bases de Tyra. Que casa queres visitar?',
+    'Level {l} · {c} · base level {b}': 'Nível {l} · {c} · base nível {b}', 'Visit': 'Visitar', 'No other bases yet.': 'Ainda não há outras bases.',
     '👛 Wallet linked': '👛 Carteira ligada',
     '☢️ Oracle Nyx': '☢️ Oráculo Nyx',
     'Tyra remembers every deed. Gather Shards, survivor: one day they will become real treasure on the TON chain.': 'Tyra lembra-se de cada feito. Junta Shards, sobrevivente: um dia vão tornar-se um tesouro real na rede TON.',
@@ -78,9 +98,9 @@ const I18N = {
     '👹 THE OVERLORD AWAKENS': '👹 O OVERLORD DESPERTOU',
     'Zone {z} · follow the purple arrow': 'Zona {z} · segue a seta roxa',
     '👹 OVERLORD': '👹 OVERLORD',
-    'Defeat it to collapse the realm and claim its treasure': 'Derrota-o para fazer ruir o reino e ganhar o tesouro',
+    'Defeat it to claim its treasure': 'Derrota-o para ganhar o tesouro',
     '👹 OVERLORD SLAIN': '👹 OVERLORD DERROTADO',
-    '+💎{g} · the realm will collapse soon': '+💎{g} · o reino vai ruir em breve',
+    '+💎{g} · treasure dropped!': '+💎{g} · o tesouro caiu!',
     '📜 Quest complete: {q}. Claim it at base': '📜 Missão concluída: {q}. Recebe-a na base',
     'Reward: 🪙{g} ✨{x} XP': 'Recompensa: 🪙{g} ✨{x} XP',
     ' + item': ' + item',
@@ -122,8 +142,10 @@ const I18N = {
     'How to play': 'Como jogar', '▶ Resume': '▶ Continuar', 'Erase save': 'Apagar save',
     'HELP': `<b>Polegar esquerdo</b> move, <b>polegar direito</b> mira e dispara (ou deixa a mira automática). 💨 esquiva, 🏠 volta à base (custa mais ouro quanto mais longe estás, é interrompido se levares dano) e deixa na base um 🌀 portal de volta ao sítio onde estavas. Toca no minimapa para ver o 🗺️ mapa do mundo. ✨ usa a habilidade da classe (gasta mana), ❤️/🔷 bebem poções de vida e mana.
       Quanto mais longe da base, maior o <b>nível da zona</b>: inimigos mais fortes, melhor saque. O mundo é infinito: a cada 5 zonas há uma nova região de perigo (Arredores → Terras Áridas → Terras Mortas → Inferno → O Abismo…) com novos inimigos.
+      Dispara contra árvores e rochas (ou fica parado ao lado delas) para recolher 🪵 madeira, 🪨 pedra e ⛓️ ferro; o 💠 cristal cai de elites e chefes. Os edifícios precisam de recursos.
+      Na app do Telegram vês os outros jogadores do teu reino, 💬 falas no chat, trocas com o ⚖️ Mercador Oto e visitas outras bases pela 🌀 Guardiã Ilsa.
       Os inimigos largam armas e armaduras (capacete, armadura, calças, botas) com bónus de atributos. Cada nível dá pontos de atributo (🎒) e um ponto de habilidade (⭐).
-      A cada 15 minutos o <b>reino</b> fecha e abre um mapa novo (és puxado para a base em segurança). Limpa 3 postos para acordar o 👹 <b>Overlord</b> do reino. Fala com os NPCs na base para <b>missões</b>, 💎 diamantes e baús de vault.
+      A cada 15 minutos o <b>reino</b> fecha e abre um mapa novo, igual para todos os jogadores (és puxado para a base em segurança). Limpa 3 postos para acordar o 👹 <b>Overlord</b> do reino. Fala com os NPCs na base para <b>missões</b>, 💎 diamantes e baús de vault.
       Limpa os <b>postos</b> vermelhos derrotando o 👑 Senhor da Guerra. O ouro e a sucata que levas só ficam seguros quando <b>voltas à base</b>.
       Morrer acaba a run: perdes o saque que levas, o equipamento solto no inventário e os bónus da run. Itens equipados, poções, nível, habilidades, base e vault ficam.
       <br><span class="muted">Computador: WASD + rato, Espaço esquiva, F habilidade, H voltar à base, M mapa, Q/1 poção de vida, R/2 poção de mana, E base, B inventário, K habilidades.</span>`,

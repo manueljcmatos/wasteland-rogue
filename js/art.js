@@ -76,16 +76,8 @@ const Art = {
     }));
   },
   // data-URL icons for the inventory grid
-  icon(it) {
-    const key = it.kind === 'potion' ? 'p' + it.p : isWeapon(it) ? it.type + it.rarity : null;
-    if (!key) return null;
-    if (this.icons[key]) return this.icons[key];
-    const c = document.createElement('canvas'); c.width = c.height = 96;
-    const x = c.getContext('2d'); x.scale(2, 2); x.lineJoin = x.lineCap = 'round';
-    if (it.kind === 'potion') drawFlask(x, 24, 26, 1.7, POTIONS[it.p].color);
-    else { const len = GUNS[it.type].len, sc = Math.min(2.2, 40 / len); x.translate(24, 26); x.rotate(-.6); x.scale(sc, sc); drawGun(x, it.type, RARITIES[it.rarity].color, -len / 2, 0); }
-    return (this.icons[key] = c.toDataURL());
-  },
+  resIcon(id) { return Icons.url(Icons.res(id)); },
+  icon(it) { return Icons.url(Icons.of(it)); },
 
   init() {
     for (const k in ENEMY_TYPES) {
@@ -280,6 +272,37 @@ function drawObstacle(ctx, o) {
   else if (o.kind === 'pine') Art.blit(ctx, Art.pine[v], o.x, o.y, 0, sc);
   else if (o.kind === 'rock') Art.blit(ctx, Art.rock[v], o.x, o.y, o.rot, sc);
   else Art.blit(ctx, Art.rubble[v], o.x, o.y, o.rot, sc);
+  if (o.hpPct < 1 && G.obsHp.has(o.k)) {
+    rrect(ctx, o.x - 16, o.y - o.r - 10, 32, 5, 2.5, 'rgba(0,0,0,.6)', 0);
+    rrect(ctx, o.x - 16, o.y - o.r - 10, Math.max(2, 32 * o.hpPct), 5, 2.5, '#ffca28', 0);
+  }
+}
+
+// small drawn resource icons (pickups, HUD-free canvases and inventory images)
+function drawResource(ctx, id, x, y, s = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  if (id === 'wood') {
+    for (const [dx, dy, r] of [[-3, 3, -.35], [3, -2, -.35]]) {
+      ctx.save(); ctx.translate(dx, dy); ctx.rotate(r);
+      rrect(ctx, -9, -3.5, 18, 7, 3.5, '#8d6e63', 1.5);
+      ball(ctx, 8, 0, 3.4, '#d7ccc8', 1.2); ctx.strokeStyle = '#a1887f'; ctx.lineWidth = .8; ctx.beginPath(); ctx.arc(8, 0, 1.6, 0, 6.283); ctx.stroke();
+      ctx.restore();
+    }
+  } else if (id === 'stone') {
+    poly(ctx, [[-9, 3], [-6, -6], [2, -8], [9, -2], [7, 6], [-3, 8]], '#9e9e9e', 1.8);
+    poly(ctx, [[-6, -6], [2, -8], [3, -2], [-3, -1]], '#cfcfcf', 0);
+    ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(3, -2); ctx.lineTo(6, 4); ctx.stroke();
+  } else if (id === 'iron') {
+    poly(ctx, [[-10, 5], [-6, -4], [6, -4], [10, 5]], '#78909c', 1.8);
+    poly(ctx, [[-6, -4], [6, -4], [4, -1], [-4, -1]], '#cfd8dc', 0);
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-5, 1, 7, 1.5);
+  } else if (id === 'crystal') {
+    const g = ctx.createLinearGradient(0, -11, 0, 10); g.addColorStop(0, '#e0f7fa'); g.addColorStop(1, '#00acc1');
+    poly(ctx, [[0, -11], [7, -3], [4, 9], [-4, 9], [-7, -3]], g, 1.8);
+    poly(ctx, [[0, -11], [7, -3], [0, -1], [-7, -3]], 'rgba(255,255,255,.45)', 0);
+    ctx.strokeStyle = 'rgba(0,96,100,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -1); ctx.lineTo(0, 9); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawDecals(ctx) {
@@ -307,7 +330,7 @@ function logsRing(ctx, R, gaps, col, stone) {
 }
 
 function drawHome(ctx) {
-  const B = G.save.buildings, total = Object.values(B).reduce((a, b) => a + b, 0);
+  const B = G.visit ? Object.assign(Object.fromEntries(BUILDINGS.map(b => [b.id, 0])), G.visit.buildings) : G.save.buildings, total = Object.values(B).reduce((a, b) => a + (+b || 0), 0);
   const g = ctx.createRadialGradient(0, 0, 40, 0, 0, HOME_R);
   g.addColorStop(0, 'rgba(150,130,100,.85)'); g.addColorStop(1, 'rgba(110,95,72,.75)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, HOME_R, 0, 6.283); ctx.fill();
@@ -496,15 +519,20 @@ function drawPickup(ctx, k) {
     const pts = [];
     for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283 + G.t, rr = i % 2 ? 6 : 8.5; pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]); }
     poly(ctx, pts, '#90a4ae', 1.5); ball(ctx, x, y, 3, '#455a64', 0);
+  } else if (k.kind === 'res') {
+    if (k.item === 'crystal') { ctx.globalAlpha = .35 + .2 * Math.sin(G.t * 5); ball(ctx, x, y, 13, '#4dd0e1', 0); ctx.globalAlpha = 1; }
+    ctx.drawImage(Icons.res(k.item), x - 18, y - 18, 36, 36);
   } else if (k.kind === 'potion') {
-    drawFlask(ctx, x, y, 1, POTIONS[k.v].color);
+    ctx.drawImage(Icons.of({ kind: 'potion', p: k.v }), x - 19, y - 21, 38, 38);
   } else if (k.kind === 'weapon' && !isWeapon(k.item)) {
     const c = RARITIES[k.item.rarity].color;
+    if (k.item.rarity >= 2) {
+      const bg = ctx.createLinearGradient(0, y - 90, 0, y);
+      bg.addColorStop(0, 'rgba(255,255,255,0)'); bg.addColorStop(1, c);
+      ctx.globalAlpha = .35 + .15 * Math.sin(G.t * 4); ctx.fillStyle = bg; ctx.fillRect(x - 7, y - 90, 14, 90); ctx.globalAlpha = 1;
+    }
     ctx.globalAlpha = .3 + .15 * Math.sin(G.t * 4); ball(ctx, x, y, 22, c, 0); ctx.globalAlpha = 1;
-    rrect(ctx, x - 14, y - 14, 28, 28, 7, 'rgba(20,22,26,.75)', 2);
-    ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.stroke();
-    ctx.font = '18px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(ARMOR_SLOTS[k.item.slot].icon, x, y + 1);
+    ctx.drawImage(Icons.of(k.item), x - 26, y - 26, 52, 52);
   } else if (k.kind === 'weapon') {
     const c = RARITIES[k.item.rarity].color;
     if (k.item.rarity >= 2) {
@@ -513,9 +541,7 @@ function drawPickup(ctx, k) {
       ctx.globalAlpha = .35 + .15 * Math.sin(G.t * 4); ctx.fillStyle = bg; ctx.fillRect(x - 7, y - 90, 14, 90); ctx.globalAlpha = 1;
     }
     ctx.globalAlpha = .3 + .15 * Math.sin(G.t * 4); ball(ctx, x, y, 22, c, 0); ctx.globalAlpha = 1;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(-.45);
-    const len = GUNS[k.item.type].len; drawGun(ctx, k.item.type, c, -len / 2, 0);
-    ctx.restore();
+    ctx.drawImage(Icons.of(k.item), x - 28, y - 28, 56, 56);
   }
 }
 
@@ -607,4 +633,42 @@ function drawPortal(ctx, x, y, label) {
   const tw = ctx.measureText(label).width + 10;
   rrect(ctx, x - tw / 2, y + 30, tw, 15, 7, 'rgba(74,20,140,.85)', 0);
   ctx.fillStyle = '#fff'; ctx.fillText(label, x, y + 38);
+}
+
+// labels drawn in the world keep the same size on screen, whatever the camera zoom
+const labelScale = () => 1 / Math.min(1, Math.max(.55, G.zoom));
+function drawBubble(ctx, x, y, text) {
+  const s = labelScale();
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); x = 0; y = 0;
+  ctx.font = '600 12px system-ui';
+  const words = String(text).split(' '), lines = [];
+  let cur = '';
+  for (const w of words) { const nx = cur ? cur + ' ' + w : w; if (ctx.measureText(nx).width > 150 && cur) { lines.push(cur); cur = w; } else cur = nx; }
+  if (cur) lines.push(cur);
+  const ls = lines.slice(0, 3), w = Math.max(...ls.map(l => ctx.measureText(l).width)) + 14, h = ls.length * 13 + 8;
+  rrect(ctx, x - w / 2, y - h, w, h, 8, 'rgba(255,255,255,.93)', 0);
+  poly(ctx, [[x - 5, y - .5], [x + 5, y - .5], [x, y + 6]], 'rgba(255,255,255,.93)', 0);
+  ctx.fillStyle = '#222'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ls.forEach((l, i) => ctx.fillText(l, x, y - h + 10 + i * 13));
+  ctx.restore();
+}
+
+// another player, as relayed by the server
+function drawOther(ctx, o) {
+  shadow(ctx, o.x, o.y, 16);
+  ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.a || 0);
+  const sw = o.moving ? Math.sin(G.t * 14 + o.x) * 6 : 0;
+  for (const s of [-1, 1]) { ctx.fillStyle = '#263238'; ctx.beginPath(); ctx.ellipse(sw * s, s * 8, 6, 4.5, 0, 0, 6.283); ctx.fill(); }
+  Art.blit(ctx, Art.bodyFor(o.cls), 0, 0);
+  rrect(ctx, 6, 2, 18, 5, 2, '#263238', 1.5);
+  Art.blit(ctx, Art.playerHead, 1, 0);
+  ctx.restore();
+  const c = CLASS_BY_ID[o.cls] || CLASSES[0], label = `${c.icon} ${o.name} · ${o.lvl}`, s = labelScale();
+  ctx.save(); ctx.translate(o.x, o.y - 30); ctx.scale(s, s);
+  ctx.font = '700 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(label).width + 12;
+  rrect(ctx, -tw / 2, -10, tw, 17, 8, 'rgba(13,71,161,.85)', 0);
+  ctx.fillStyle = '#fff'; ctx.fillText(label, 0, -1.5);
+  ctx.restore();
+  if (o.sayT > 0 && o.say) drawBubble(ctx, o.x, o.y - 30 - 14 * s, o.say);
 }
