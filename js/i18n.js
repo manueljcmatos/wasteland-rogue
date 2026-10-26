@@ -26,6 +26,12 @@ const I18N = {
     '🌀 Back to zone {z}': '🌀 De volta à zona {z}',
     '🌀 Portal · zone {z}': '🌀 Portal · zona {z}',
     '🗺️ World map': '🗺️ Mapa do mundo',
+    '🌀 WAYPOINT DISCOVERED': '🌀 PORTAL DESCOBERTO', '{n} · travel here from the 🗺️ map': '{n} · viaja para aqui pelo 🗺️ mapa',
+    'Need 🪙{c} to travel': 'Precisas de 🪙{c} para viajar', '🌀 Travelling to {n}… (🪙{c})': '🌀 A viajar para {n}… (🪙{c})', 'Travel interrupted!': 'Viagem interrompida!',
+    'Zone {z}': 'Zona {z}', '◆ waypoints · dark: unexplored': '◆ portais · escuro: por explorar', 'Waypoints': 'Portais de viagem',
+    '{n} discovered in this realm': '{n} descobertos neste reino', 'Return home before travelling.': 'Volta a casa antes de viajar.',
+    'Explore the realm to find ancient waypoints. Walk close to one to wake it up.': 'Explora o reino para encontrar portais antigos. Aproxima-te de um para o acordar.',
+    'Zone {z} · {d}m away': 'Zona {z} · a {d}m', 'Travelling takes {s}s and is interrupted if you get hit.': 'A viagem demora {s}s e é interrompida se levares dano.',
     '+{n} ☢️ Shards': '+{n} ☢️ Shards',
     'Wood': 'Madeira', 'Stone': 'Pedra', 'Iron': 'Ferro', 'Crystal': 'Cristal', 'Gold': 'Ouro',
     '⚖️ {n} accepted your trade offer!': '⚖️ {n} aceitou a tua oferta de troca!',
@@ -140,7 +146,7 @@ const I18N = {
     'Progress is also saved to the cloud with your Telegram account.': 'O progresso também é guardado na nuvem com a tua conta do Telegram.',
     '📋 Copy code': '📋 Copiar código', '📥 Load pasted code': '📥 Carregar código colado',
     'How to play': 'Como jogar', '▶ Resume': '▶ Continuar', 'Erase save': 'Apagar save',
-    'HELP': `<b>Polegar esquerdo</b> move, <b>polegar direito</b> mira e dispara (ou deixa a mira automática). 💨 esquiva, 🏠 volta à base (custa mais ouro quanto mais longe estás, é interrompido se levares dano) e deixa na base um 🌀 portal de volta ao sítio onde estavas. Toca no minimapa para ver o 🗺️ mapa do mundo. ✨ usa a habilidade da classe (gasta mana), ❤️/🔷 bebem poções de vida e mana.
+    'HELP': `<b>Polegar esquerdo</b> move, <b>polegar direito</b> mira e dispara (ou deixa a mira automática). 💨 esquiva, 🏠 volta à base (custa mais ouro quanto mais longe estás, é interrompido se levares dano) e deixa na base um 🌀 portal de volta ao sítio onde estavas. Toca no minimapa para ver o 🗺️ mapa do mundo: só mostra o que já exploraste. Aproxima-te de um 🌀 portal antigo para o acordar e depois paga ouro para viajar até ele a partir do mapa. ✨ usa a habilidade da classe (gasta mana), ❤️/🔷 bebem poções de vida e mana.
       Quanto mais longe da base, maior o <b>nível da zona</b>: inimigos mais fortes, melhor saque. O mundo é infinito: a cada 5 zonas há uma nova região de perigo (Arredores → Terras Áridas → Terras Mortas → Inferno → O Abismo…) com novos inimigos.
       Dispara contra árvores e rochas (ou fica parado ao lado delas) para recolher 🪵 madeira, 🪨 pedra e ⛓️ ferro; o 💠 cristal cai de elites e chefes. Os edifícios precisam de recursos.
       Na app do Telegram vês os outros jogadores do teu reino, 💬 falas no chat, trocas com o ⚖️ Mercador Oto e visitas outras bases pela 🌀 Guardiã Ilsa.

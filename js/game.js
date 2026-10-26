@@ -16,6 +16,7 @@ function resize() {
   G.canvas.width = G.w * G.dpr | 0; G.canvas.height = G.h * G.dpr | 0;
   G.canvas.style.width = G.w + 'px'; G.canvas.style.height = G.h + 'px';
   G.zoom = U.clamp(Math.min(G.w, G.h) / 620, .55, 1.15);
+
 }
 
 function newRun() {
@@ -312,6 +313,7 @@ function hurtPlayer(dmg, src) {
   if (p.inv > 0 || p.dashT > 0 || G.atHome) return;
   dmg *= 1 - G.st.dr;
   if (G.recallT > 0) { G.recallT = 0; toast(t('Return interrupted!'), '#ff8a80'); }
+  Explore.cancel();
   p.hp -= dmg; p.inv = .22; G.hurtFlash = .35; G.shake = Math.min(.4, G.shake + .15);
   addText(p.x, p.y - 26, '-' + Math.round(dmg), '#ff5252', 16);
   Sfx.play('hurt');
@@ -371,7 +373,7 @@ function die() {
   newRun();
   G.enemies = []; G.bullets = []; G.ebullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.pendingPerks = 0;
   Object.assign(G.p, { x: 0, y: 60, dashT: 0, dashCd: 0, inv: 0 });
-  G.buff = { rapid: 0, crit: 0, spd: 0 }; G.abCd = 0; G.recallT = 0;
+  G.buff = { rapid: 0, crit: 0, spd: 0 }; G.abCd = 0; G.recallT = 0; G.tp = null;
   recalc(); G.p.hp = G.st.maxHp; G.p.mp = G.st.maxMp;
   G.atHome = true; G.lastZone = 1; G.shop = null;
   persist();
@@ -733,6 +735,7 @@ function update(dt) {
   spawnEnemies(dt);
   updateOutposts(dt);
   updatePortal();
+  Explore.update(dt);
   Realm.update();
   G.npc = nearNpc();
   updateEnemies(dt);
@@ -740,6 +743,7 @@ function update(dt) {
   updateTurrets(dt);
   updatePickups(dt);
   updateFx(dt);
+  updateAmbient(dt);
   G.shake = Math.max(0, G.shake - dt); G.hurtFlash = Math.max(0, G.hurtFlash - dt);
 
   // farm income
@@ -774,6 +778,7 @@ function render() {
 
   if (vis(0, 0, HOME_R + 40)) { drawHome(ctx); if (!G.visit) for (const n of NPCS) drawNpc(ctx, n); if (G.save.run.portal && !G.visit) drawPortal(ctx, PORTAL_POS[0], PORTAL_POS[1], t('🌀 Portal · zone {z}', { z: G.save.run.portal.z })); }
   for (const o of World.outpostsNear(cx, cy, Math.max(hw, hh) + 300)) drawOutpost(ctx, o);
+  if (!G.visit) for (const w of Explore.wpsNear(cx, cy, Math.max(hw, hh) + 200)) drawWaypoint(ctx, w, Explore.known(w.id));
   drawDecals(ctx);
 
   // obstacles
@@ -808,12 +813,18 @@ function render() {
 
   drawPlayer(ctx);
   if (G.mySayT > 0) { G.mySayT -= 1 / 60; drawBubble(ctx, p.x, p.y - 26, G.mySay); }
+  if (G.tp) {
+    const f = 1 - G.tp.t / TP_TIME;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(128,222,234,.35)'; ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, 6.283); ctx.stroke();
+    ctx.strokeStyle = '#80deea'; ctx.beginPath(); ctx.arc(p.x, p.y, 34, -Math.PI / 2, -Math.PI / 2 + f * 6.283); ctx.stroke();
+  }
   if (G.recallT > 0) {
     const f = 1 - G.recallT / RECALL_TIME;
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,224,130,.35)'; ctx.beginPath(); ctx.arc(p.x, p.y, 30, 0, 6.283); ctx.stroke();
     ctx.strokeStyle = '#ffe082'; ctx.beginPath(); ctx.arc(p.x, p.y, 30, -Math.PI / 2, -Math.PI / 2 + f * 6.283); ctx.stroke();
   }
 
+  drawAmbient(ctx);
   // particles
   for (const q of G.parts) {
     ctx.globalAlpha = Math.max(0, q.life / q.max);
@@ -887,11 +898,16 @@ function drawMinimap() {
   const range = 1300 * (1 + Math.min(radar, 6) * .4), sc = S / 2 / range, cells = 20, cs = S / cells;
   for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) {
     const wx = p.x + ((i + .5) * cs - S / 2) / sc, wy = p.y + ((j + .5) * cs - S / 2) / sc;
+    if (!Explore.seenAt(wx, wy)) { m.fillStyle = (i + j) % 2 ? '#0c0e12' : '#10131a'; m.fillRect(i * cs, j * cs, cs + 1, cs + 1); continue; }
     const c = BIOMES[World.biomeAt(wx, wy)].c;
     m.fillStyle = `rgb(${c[0] * .7 | 0},${c[1] * .7 | 0},${c[2] * .7 | 0})`;
     m.fillRect(i * cs, j * cs, cs + 1, cs + 1);
   }
   const toM = (x, y) => [S / 2 + (x - p.x) * sc, S / 2 + (y - p.y) * sc];
+  for (const w of Explore.knownList()) {
+    const [wx, wy] = toM(w.x, w.y); if (wx < -4 || wy < -4 || wx > S + 4 || wy > S + 4) continue;
+    m.fillStyle = '#80deea'; m.beginPath(); m.moveTo(wx, wy - 4.5); m.lineTo(wx + 3.5, wy); m.lineTo(wx, wy + 4.5); m.lineTo(wx - 3.5, wy); m.fill();
+  }
   // home
   let [hx, hy] = toM(0, 0);
   m.strokeStyle = '#ffe082'; m.lineWidth = 2; m.beginPath(); m.arc(hx, hy, Math.max(3, HOME_R * sc), 0, 6.283); m.stroke();
@@ -916,12 +932,17 @@ addEventListener('load', init);
 // full-screen world map (tap the minimap)
 function drawWorldMap(cv) {
   const m = cv.getContext('2d'), S = cv.width, p = G.p, run = G.save.run, RB = G.save.realm.boss, radar = G.save.buildings.radar;
-  let R = Math.max(3500, Math.hypot(p.x, p.y) + 1200);
+  // zoom to what has been explored
+  let R = Math.max(1800, Math.hypot(p.x, p.y) + 900);
+  for (const k of Explore.seen) { const [cx, cy] = k.split(',').map(Number); R = Math.max(R, Math.hypot((cx + .5) * FOG_CELL, (cy + .5) * FOG_CELL) + FOG_CELL); }
+  for (const w of Explore.knownList()) R = Math.max(R, Math.hypot(w.x, w.y) + 700);
   if (run.portal) R = Math.max(R, Math.hypot(run.portal.x, run.portal.y) + 800);
   if (RB && !RB.killed) R = Math.max(R, Math.hypot(RB.x, RB.y) + 800);
   const sc = S / 2 / R, cells = 80, cs = S / cells;
   for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) {
-    const c = BIOMES[World.biomeAt(((i + .5) * cs - S / 2) / sc, ((j + .5) * cs - S / 2) / sc)].c;
+    const wx = ((i + .5) * cs - S / 2) / sc, wy = ((j + .5) * cs - S / 2) / sc;
+    if (!Explore.seenAt(wx, wy)) { m.fillStyle = (i + j) % 2 ? '#0c0e12' : '#0f1217'; m.fillRect(i * cs, j * cs, cs + 1, cs + 1); continue; }
+    const c = BIOMES[World.biomeAt(wx, wy)].c;
     m.fillStyle = `rgb(${c[0] * .75 | 0},${c[1] * .75 | 0},${c[2] * .75 | 0})`;
     m.fillRect(i * cs, j * cs, cs + 1, cs + 1);
   }
@@ -946,6 +967,12 @@ function drawWorldMap(cv) {
   const mark = (x, y, txt, size = 16) => { m.font = `${size}px system-ui`; m.fillText(txt, x, y); };
   let [hx, hy] = toM(0, 0); mark(hx, hy, '🏠', 18);
   if (run.portal) { const [x, y] = toM(run.portal.x, run.portal.y); mark(x, y, '🌀'); }
+  Explore.knownList().forEach((w, i) => {
+    const [x, y] = toM(w.x, w.y);
+    m.fillStyle = '#80deea'; m.strokeStyle = '#003c43'; m.lineWidth = 3;
+    m.beginPath(); m.moveTo(x, y - 11); m.lineTo(x + 8, y); m.lineTo(x, y + 11); m.lineTo(x - 8, y); m.closePath(); m.stroke(); m.fill();
+    m.font = '800 11px system-ui'; m.fillStyle = '#003c43'; m.fillText(i + 1, x, y + 1);
+  });
   if (RB && !RB.killed) { const [x, y] = toM(RB.x, RB.y); mark(x, y, '👹', 20); }
   const [px, py] = toM(p.x, p.y);
   m.save(); m.translate(px, py); m.rotate(p.ang);
@@ -968,4 +995,34 @@ function endVisit() {
   G.visit = null; G.p.x = 0; G.p.y = 60;
   burst(0, 60, '#b388ff', 20, 160);
   Mp.channelChanged();
+}
+
+// ---------- ambience: floating particles that depend on the biome you're in ----------
+const AMB = {
+  snow:   { n: 70, col: ['#ffffff', '#e3f2fd'], vx: [-15, 15], vy: [25, 60], size: [1.2, 2.6], glow: false },
+  desert: { n: 40, col: ['#f5deb3', '#e6c88f'], vx: [60, 120], vy: [-6, 6], size: [.8, 1.6], glow: false },
+  waste:  { n: 35, col: ['#ffab40', '#ff7043'], vx: [-10, 10], vy: [-30, -12], size: [1, 2], glow: true },
+  forest: { n: 28, col: ['#ccff90', '#f4ff81'], vx: [-12, 12], vy: [-12, 12], size: [1.2, 2.2], glow: true },
+  swamp:  { n: 30, col: ['#b9f6ca', '#ccff90'], vx: [-10, 10], vy: [-10, 10], size: [1.2, 2.2], glow: true },
+  grass:  { n: 18, col: ['#fff59d', '#ffffff'], vx: [-14, 14], vy: [-8, 8], size: [1, 1.8], glow: true },
+  ruins:  { n: 30, col: ['#b0bec5', '#90a4ae'], vx: [-8, 8], vy: [8, 22], size: [1, 2], glow: false },
+};
+function updateAmbient(dt) {
+  const p = G.p, A = AMB[World.biomeAt(p.x, p.y)] || AMB.grass, hw = G.w / 2 / G.zoom + 40, hh = G.h / 2 / G.zoom + 40;
+  if (!G.amb) G.amb = [];
+  for (const q of G.amb) { q.x += q.vx * dt; q.y += q.vy * dt; q.t += dt; }
+  G.amb = G.amb.filter(q => q.t < q.life && Math.abs(q.x - p.x) < hw + 60 && Math.abs(q.y - p.y) < hh + 60);
+  while (G.amb.length < A.n) {
+    G.amb.push({ x: p.x + U.rand(-hw, hw), y: p.y + U.rand(-hh, hh), vx: U.rand(...A.vx), vy: U.rand(...A.vy), size: U.rand(...A.size),
+      col: U.pick(A.col), glow: A.glow, t: 0, life: U.rand(3, 7), ph: Math.random() * 6 });
+  }
+}
+function drawAmbient(ctx) {
+  for (const q of G.amb || []) {
+    const fade = Math.min(1, q.t, q.life - q.t);
+    ctx.globalAlpha = q.glow ? fade * (.4 + .4 * Math.sin(G.t * 3 + q.ph)) : fade * .7;
+    if (q.glow) { ctx.fillStyle = q.col; ctx.globalAlpha *= .35; ctx.beginPath(); ctx.arc(q.x, q.y, q.size * 3.5, 0, 6.283); ctx.fill(); ctx.globalAlpha /= .35; }
+    ctx.fillStyle = q.col; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }

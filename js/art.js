@@ -43,7 +43,7 @@ function shadow(ctx, x, y, r) {
 }
 
 const Art = {
-  S: 2, enemy: {}, enemyW: {}, tex: {}, tree: [], pine: [], rock: [], rubble: [],
+  S: 2, enemy: {}, enemyW: {}, tex: {}, detail: {}, tree: [], pine: [], rock: [], rubble: [],
 
   bake(size, fn) {
     const c = document.createElement('canvas');
@@ -91,7 +91,7 @@ const Art = {
       this.rock.push(this.bake(70, x => this.rockShape(x, i)));
       this.rubble.push(this.bake(70, x => this.rubbleShape(x, i)));
     }
-    for (const b in BIOMES) this.tex[b] = [0, 1, 2, 3].map(v => this.groundTex(b, v));
+    for (const b in BIOMES) { this.tex[b] = [0, 1, 2, 3].map(v => this.groundTex(b, v)); this.detail[b] = [0, 1, 2, 3].map(v => this.groundTex(b, v, true)); }
     this.playerBody = this.bake(48, x => {
       rrect(x, -17, -9, 11, 18, 4, '#6d4c41');              // backpack
       rrect(x, -15, -6, 6, 12, 2, '#8d6e63', 0);
@@ -213,15 +213,15 @@ const Art = {
     for (let i = 0; i < 3; i++) rrect(x, (U.hash(i, v, 3) - .5) * R * 1.6, R * .6 + i * 2, 6, 6, 1, '#4a4d52', 1);
   },
 
-  groundTex(b, v) {
+  groundTex(b, v, detailOnly = false) {
     const B = BIOMES[b], base = `rgb(${B.c})`, S = TILE;
     const c = document.createElement('canvas'); c.width = c.height = S * this.S;
     const x = c.getContext('2d'); x.scale(this.S, this.S);
     let seed = v * 1000 + b.length * 31;
     const rnd = () => U.hash(seed++, v, 991);
     const col = f => shade('#' + B.c.map(n => n.toString(16).padStart(2, '0')).join(''), f);
-    x.fillStyle = base; x.fillRect(0, 0, S, S);
-    x.fillStyle = col((rnd() - .5) * .04); x.fillRect(0, 0, S, S);
+    if (!detailOnly) { x.fillStyle = base; x.fillRect(0, 0, S, S); }
+    const r0 = rnd(); if (!detailOnly) { x.fillStyle = col((r0 - .5) * .04); x.fillRect(0, 0, S, S); }
     const px = () => 4 + rnd() * (S - 8);
     if (b === 'grass' || b === 'forest' || b === 'swamp') {
       for (let i = 0; i < 16; i++) {
@@ -258,10 +258,23 @@ const Art = {
 };
 
 // ---------- per-frame drawing ----------
+// ground: one pixel per tile with the biome colour, scaled up with smoothing so biomes blend
+// into each other, then the detail textures (grass, pebbles, cracks...) drawn on top
 function drawGround(ctx, tx0, tx1, ty0, ty1) {
+  const w = tx1 - tx0 + 1, h = ty1 - ty0 + 1;
+  let gc = Art.groundCv;
+  if (!gc || gc.width !== w || gc.height !== h) { gc = Art.groundCv = document.createElement('canvas'); gc.width = w; gc.height = h; Art.groundImg = gc.getContext('2d').createImageData(w, h); }
+  const img = Art.groundImg, d = img.data;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const c = World.tile(tx0 + i, ty0 + j).rgb, o = (j * w + i) * 4;
+    d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+  }
+  gc.getContext('2d').putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
+  ctx.drawImage(gc, .5, .5, w - 1, h - 1, tx0 * TILE + TILE / 2, ty0 * TILE + TILE / 2, (w - 1) * TILE, (h - 1) * TILE);
   for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
     const t = World.tile(tx, ty);
-    ctx.drawImage(Art.tex[t.b][t.v], tx * TILE, ty * TILE, TILE + .6, TILE + .6);
+    ctx.drawImage(Art.detail[t.b][t.v], tx * TILE, ty * TILE, TILE + .6, TILE + .6);
   }
 }
 
@@ -671,4 +684,52 @@ function drawOther(ctx, o) {
   ctx.fillStyle = '#fff'; ctx.fillText(label, 0, -1.5);
   ctx.restore();
   if (o.sayT > 0 && o.say) drawBubble(ctx, o.x, o.y - 30 - 14 * s, o.say);
+}
+
+// ancient waypoint: a stone circle with runes; glows once discovered
+function drawWaypoint(ctx, w, on) {
+  const { x, y } = w, tt = G.t;
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(x + 4, y + 8, 64, 50, 0, 0, 6.283); ctx.fill();
+  // platform
+  const g = ctx.createRadialGradient(x, y, 10, x, y, 62);
+  g.addColorStop(0, on ? '#5d7a80' : '#6b6b6b'); g.addColorStop(1, on ? '#33464b' : '#3f3f3f');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 62, 0, 6.283); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = OUT; ctx.stroke();
+  // slabs
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * 6.283;
+    ctx.save(); ctx.translate(x + Math.cos(a) * 48, y + Math.sin(a) * 48); ctx.rotate(a);
+    rrect(ctx, -6, -9, 12, 18, 2, i % 2 ? '#8a8f93' : '#7a7f83', 1.2); ctx.restore();
+  }
+  // four standing stones
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * 6.283 + .785, sx = x + Math.cos(a) * 64, sy = y + Math.sin(a) * 64;
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(sx + 3, sy + 6, 11, 8, 0, 0, 6.283); ctx.fill();
+    rrect(ctx, sx - 9, sy - 18, 18, 26, 4, '#90969b', 2);
+    rrect(ctx, sx - 9, sy - 18, 18, 9, 4, '#b0b6ba', 0);
+    if (on) { ctx.globalAlpha = .6 + .4 * Math.sin(tt * 3 + i); ball(ctx, sx, sy - 6, 3.5, '#80deea', 0); ctx.globalAlpha = 1; }
+  }
+  // rune ring
+  ctx.strokeStyle = on ? '#80deea' : 'rgba(255,255,255,.18)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, 30, 0, 6.283); ctx.stroke();
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * 6.283 + (on ? tt * .4 : 0);
+    ctx.save(); ctx.translate(x + Math.cos(a) * 30, y + Math.sin(a) * 30); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(-3, -4); ctx.lineTo(3, 0); ctx.lineTo(-3, 4); ctx.stroke(); ctx.restore();
+  }
+  if (on) {
+    const f = 1 + .08 * Math.sin(tt * 4);
+    const cg = ctx.createRadialGradient(x, y, 2, x, y, 28 * f);
+    cg.addColorStop(0, 'rgba(224,247,250,.95)'); cg.addColorStop(.5, 'rgba(77,208,225,.55)'); cg.addColorStop(1, 'rgba(77,208,225,0)');
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, 28 * f, 0, 6.283); ctx.fill();
+    if (Math.random() < .3) G.parts.push({ x: x + U.rand(-22, 22), y: y + U.rand(-22, 22), vx: 0, vy: -40, life: .8, max: .8, color: '#b2ebf2', size: 2 });
+  } else ball(ctx, x, y, 9, '#4a4f53', 2);
+  // name plate
+  const s = labelScale(), label = on ? `🌀 ${w.name}` : '???';
+  ctx.save(); ctx.translate(x, y - 84); ctx.scale(s, s);
+  ctx.font = '700 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(label).width + 12;
+  rrect(ctx, -tw / 2, -8, tw, 16, 8, on ? 'rgba(0,96,100,.85)' : 'rgba(0,0,0,.55)', 0);
+  ctx.fillStyle = '#fff'; ctx.fillText(label, 0, 0);
+  ctx.restore();
 }

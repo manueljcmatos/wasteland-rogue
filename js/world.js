@@ -35,11 +35,11 @@ const World = {
     const sh = (U.hash(tx, ty, this.seed + 13) - .5) * 14;
     const col = `rgb(${(B.c[0] + sh) | 0},${(B.c[1] + sh) | 0},${(B.c[2] + sh) | 0})`;
     let obs = null;
-    if (!this.destroyed.has(k) && Math.hypot(cx, cy) > HOME_R + 120 && U.hash(tx, ty, this.seed + 7) < B.dens && !this.nearOutpost(cx, cy, 230)) {
+    if (!this.destroyed.has(k) && Math.hypot(cx, cy) > HOME_R + 120 && U.hash(tx, ty, this.seed + 7) < B.dens && !this.nearOutpost(cx, cy, 230) && !(window.Explore && Explore.wpsNear(cx, cy, 110).length)) {
       const h2 = U.hash(tx, ty, this.seed + 21);
       obs = { x: cx + (h2 - .5) * 24, y: cy + (U.hash(tx, ty, this.seed + 22) - .5) * 24, r: 16 + h2 * 12, kind: B.obs, rot: h2 * 6, k };
     }
-    c = { col, b, obs, v: Math.floor(U.hash(tx, ty, this.seed + 3) * 4) };
+    c = { col, rgb: [B.c[0] + sh, B.c[1] + sh, B.c[2] + sh], b, obs, v: Math.floor(U.hash(tx, ty, this.seed + 3) * 4) };
     if (this.cache.size > 40000) this.cache.clear();
     this.cache.set(k, c);
     return c;

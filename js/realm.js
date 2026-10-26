@@ -28,6 +28,7 @@ const Realm = {
     if (!S.realm.cut) S.realm.cut = [];
     S.seed = S.realm.seed;
     World.reset(S.seed, S.realm.cut);
+    Explore.load();
   },
   timeLeft() { return Math.max(0, ((G.save.realm.id + 1) * REALM_LEN * 1000 - Date.now()) / 1000); },
   closing() { return this.timeLeft() <= REALM_WARN; },
@@ -46,7 +47,7 @@ const Realm = {
   // the old realm vanishes; a new one opens. Being pulled out is not death: carried loot is banked.
   shift() {
     const S = G.save, p = G.p, wasOut = !G.atHome && !G.visit;
-    S.realm = this.make(realmIdNow()); S.seed = S.realm.seed; World.reset(S.seed, S.realm.cut);
+    S.realm = this.make(realmIdNow()); S.seed = S.realm.seed; World.reset(S.seed, S.realm.cut); Explore.load(); G.tp = null;
     S.run.cleared = []; S.run.portal = null;
     G.enemies = []; G.ebullets = []; G.bullets = []; G.pickups = []; G.decals = []; G.active.clear(); G.obsHp.clear();
     G.recallT = 0;

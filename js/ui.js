@@ -161,6 +161,7 @@ const UI = {
         if (G.npc) return this.npc(G.npc.id);
         this.show('home', this.homeHtml()); return;
       case 'recall': startRecall(); return;
+      case 'travel': Explore.startTeleport(d.id); return;
       case 'map': this.show('map', this.mapHtml()); this.drawMap(); return;
       case 'quests': this.show('quests', this.questsHtml()); return;
       case 'gemshop': this.show('gems', this.gemsHtml()); return;
@@ -443,7 +444,7 @@ const UI = {
 
   helpText() {
     if (I18N.lang === 'pt') return t('HELP');
-    return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes, 🏠 returns you to base (costs more gold the further out you are, interrupted if you get hit) and leaves a 🌀 portal at base that takes you back to where you were. Tap the minimap for the 🗺️ world map. ✨ uses your class ability (costs mana), ❤️/🔷 drink health and mana potions.
+    return `<b>Left thumb</b> moves, <b>right thumb</b> aims &amp; fires (or let auto-aim do it). 💨 dashes, 🏠 returns you to base (costs more gold the further out you are, interrupted if you get hit) and leaves a 🌀 portal at base that takes you back to where you were. Tap the minimap for the 🗺️ world map: it only shows what you have explored. Walk close to an ancient 🌀 waypoint to wake it up, then pay gold to travel to it from the map. ✨ uses your class ability (costs mana), ❤️/🔷 drink health and mana potions.
       The further you roam from base, the higher the <b>zone level</b>: tougher enemies, better loot. The world is endless: every 5 zones is a new danger tier (Outskirts → Badlands → Deadlands → Inferno → The Abyss…) with new enemy types.
       Shoot trees and rocks (or stand still next to them) to gather 🪵 wood, 🪨 stone and ⛓️ iron; 💠 crystal drops from elites and bosses. Buildings need resources.
       In the Telegram app you see other players in your realm, 💬 chat, trade at ⚖️ Trader Oto and visit other bases through 🌀 Gatekeeper Ilsa.
@@ -670,7 +671,20 @@ const UI = {
     const sz = Math.min(innerWidth - 56, innerHeight - 190, 560);
     return `${this.head(t('🗺️ World map'))}
       <canvas id="bigmap" width="${sz * 2}" height="${sz * 2}" style="width:${sz}px;height:${sz}px;display:block;margin:0 auto;border-radius:12px"></canvas>
-      <p class="muted">${t('🏠 base · 🌀 portal · 👹 Overlord · ■ outposts (all of them with the Radar) · dashed rings: danger tiers')}</p>`;
+      <p class="muted">${t('🏠 base · 🌀 portal · 👹 Overlord · ■ outposts (all of them with the Radar) · dashed rings: danger tiers')} · ${t('◆ waypoints · dark: unexplored')}</p>
+      ${this.travelHtml()}`;
+  },
+  travelHtml() {
+    const list = Explore.knownList();
+    const head = `<h3>🌀 ${t('Waypoints')} <span class="muted">· ${t('{n} discovered in this realm', { n: list.length })}</span></h3>`;
+    if (G.visit) return head + `<p class="muted">${t('Return home before travelling.')}</p>`;
+    if (!list.length) return head + `<p class="muted">${t('Explore the realm to find ancient waypoints. Walk close to one to wake it up.')}</p>`;
+    const S = G.save, money = S.gold + S.run.gold;
+    return head + list.map((w, i) => {
+      const c = Explore.cost(w), z = zoneOf(w.x, w.y), d = Math.round(Math.hypot(w.x - G.p.x, w.y - G.p.y) / 10);
+      return `<div class="row"><div class="ic wpn">${i + 1}</div><div class="tx"><b>${w.name}</b><div>${t('Zone {z} · {d}m away', { z, d: U.fmt(d) })}</div></div>
+        <button class="btn ${money >= c ? 'good' : ''}" data-act="travel" data-id="${w.id}" ${money >= c && !G.tp ? '' : 'disabled'}>🌀 🪙${U.fmt(c)}</button></div>`;
+    }).join('') + `<p class="muted">${t('Travelling takes {s}s and is interrupted if you get hit.', { s: TP_TIME })}</p>`;
   },
   drawMap() { const cv = $('bigmap'); if (cv) drawWorldMap(cv); },
 

@@ -30,7 +30,10 @@ Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.
 - **Detailed item icons**: drawn weapons, armor (material changes with rarity), potions and resources, with rarity glow.
 
 - **Return portal**: returning to base opens a 🌀 portal inside the base that takes you back to the exact spot you left (one use).
-- **World map**: tap the minimap for a full map with danger tier rings, outposts, the Overlord and your portal.
+- **Fog of war**: the minimap and the world map only show what you have explored in the current realm.
+- **Waypoints**: ancient stone circles spread across each realm (the same for every player). Walk close to one to wake it up; then travel to any discovered waypoint from the world map for gold (cost grows with zone and distance, 1.5 s channel interrupted by damage).
+- **World map**: tap the minimap for a full map with danger tier rings, outposts, the Overlord, your portal and your waypoints.
+- **Visuals**: biome colours blend smoothly, ambient particles per biome (snow, sand, embers, fireflies), vignette lighting, glass HUD and redesigned menus.
 - **Rotating realms** (Realm of the Mad God style): every 15 minutes (wall clock, the same for all players) the realm closes and a new procedurally generated map opens with a new name. You are pulled back to base safely and your loot is banked.
 - **Realm Overlord**: clear 3 outposts in a realm to awaken a 👹 Overlord. Killing it drops top loot and 💎 gems, then the realm collapses.
 - **NPCs at base**: 📜 Commander Vale (quests), 💎 Mystic Zara (gem shop), 🗝️ Keeper Bram (vault), 🔨 Smith Hilda (workshop).
@@ -79,6 +82,7 @@ js/i18n.js      English / Portuguese translations
 js/ton.js       TON Connect wallet linking (library loaded on demand)
 js/mp.js        realtime presence and chat (WebSocket)
 js/icons.js     detailed item and resource icons
+js/explore.js   fog of war and waypoint travel
 config.js       deployment settings (server URL, bot username)
 server/         backend (see server/README.md)
 js/art.js       all visuals: baked sprites, ground textures, buildings, effects
