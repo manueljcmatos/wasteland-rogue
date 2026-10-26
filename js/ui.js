@@ -73,6 +73,8 @@ const UI = {
     $('rankText').textContent = t('Rank {n} · next perk', { n: r.rank });
     $('goldTxt').textContent = G.atHome ? U.fmt(S.gold) : U.fmt(r.gold);
     $('scrapTxt').textContent = G.atHome ? U.fmt(S.scrap) : U.fmt(r.scrap);
+    $('shardRow').style.display = Net.on && Net.w ? '' : 'none';
+    if (Net.w) $('shardTxt').textContent = U.fmt(Net.w.shards);
     const zl = $('zoneLbl');
     if (G.atHome) { zl.textContent = t('🏠 Safe base'); zl.style.color = ''; }
     else {
@@ -146,6 +148,12 @@ const UI = {
       case 'map': this.show('map', this.mapHtml()); this.drawMap(); return;
       case 'quests': this.show('quests', this.questsHtml()); return;
       case 'gemshop': this.show('gems', this.gemsHtml()); return;
+      case 'shards':
+        this.board = null; this.show('shards', this.shardsHtml());
+        if (Net.on) Net.leaderboard().then(b => { this.board = b; if (this.open === 'shards') this.refresh(); }).catch(() => {});
+        return;
+      case 'tonconnect': Ton.connect(); return;
+      case 'tondisconnect': Ton.disconnect().then(() => this.refresh()); return;
       case 'claim': Quests.claim(d.id); break;
       case 'qreroll': Quests.reroll(d.id); break;
       case 'gempack': {
@@ -551,10 +559,31 @@ const UI = {
   npc(id) {
     if (id === 'quest') return this.act('quests');
     if (id === 'gems') return this.act('gemshop');
+    if (id === 'oracle') return this.act('shards');
     this.homeTab = id === 'vault' ? 'stash' : 'work';
     this.show('home', this.homeHtml());
   },
   chestPrice() { return 50 * G.save.vaultChests; },
+
+  shardsHtml() {
+    const w = Net.w, head = this.head(t('☢️ Oracle Nyx'));
+    const say = `<div class="npc-say">“${t('The wasteland remembers every deed. Gather Shards, survivor: one day they will become real treasure on the TON chain.')}”</div>`;
+    if (!Net.on || !w) return `${head}${say}<div class="testmode">${t('☢️ Shards are earned when you play inside the Telegram app.')}</div>`;
+    const short = a => a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-6) : a;
+    const ev = [['👹', t('Slay an Overlord'), 25], ['📜', t('Complete a quest'), 5], ['🏴', t('Clear an outpost'), 3], ['🧭', t('Reach a new best zone'), 4]];
+    const b = this.board;
+    return `${head}${say}
+      <div class="stats"><div>☢️ Shards<b style="color:#b9f6ca">${U.fmt(w.shards)}</b></div><div>${t('Today')}<b>${w.shardsToday} / ${w.shardCap}</b></div></div>
+      <h3>${t('How to earn')}</h3>
+      ${ev.map(([i, n, v]) => `<div class="row"><div class="ic">${i}</div><div class="tx"><b>${n}</b></div><b style="color:#b9f6ca">+${v} ☢️</b></div>`).join('')}
+      <h3>👛 ${t('TON wallet')}</h3>
+      ${w.wallet ? `<div class="row"><div class="ic">👛</div><div class="tx"><b>${short(w.wallet)}</b><div>${t('Your Shards will be converted to the token and sent here.')}</div></div><button class="btn alt" data-act="tondisconnect">${t('Unlink')}</button></div>`
+        : `<p class="muted">${t('Link a TON wallet (Telegram Wallet, Tonkeeper…) so you can receive the token later.')}</p><button class="btn big good" data-act="tonconnect">👛 ${t('Connect TON wallet')}</button>`}
+      <div class="testmode">🪙 ${t('Token coming soon: Shards will convert to the Wasteland token on TON. The rate and date will be announced. Shards cannot be bought.')}</div>
+      <h3>🏆 ${t('Leaderboard')}</h3>
+      ${!b ? `<p class="muted">${t('Loading…')}</p>` : b.top.length ? b.top.map(r => `<div class="row" style="${r.me ? 'outline:2px solid #b9f6ca' : ''}"><div class="ic">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : '#' + r.rank}</div><div class="tx"><b>${r.name.replace(/</g, '&lt;')}</b></div><b style="color:#b9f6ca">${U.fmt(r.shards)} ☢️</b></div>`).join('')
+        + (b.myRank && b.myRank > b.top.length ? `<p class="muted">${t('Your rank: #{n}', { n: b.myRank })}</p>` : '') : `<p class="muted">${t('No Shards yet. Be the first!')}</p>`}`;
+  },
 
   questsHtml() {
     const S = G.save;

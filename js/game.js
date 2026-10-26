@@ -522,7 +522,7 @@ function killEnemy(e, exploded) {
   dropLoot(e);
   if (e.type === 'overlord') Realm.onBossKilled(e);
   else if (e.boss && e.outpost) {
-    run.cleared.push(e.outpost); Quests.progress('outpost'); Realm.onOutpostCleared(); G.save.stats.bosses++;
+    run.cleared.push(e.outpost); Quests.progress('outpost'); Realm.onOutpostCleared(); Net.shard('outpost'); G.save.stats.bosses++;
     for (const g of G.enemies) if (g.outpost === e.outpost && !g.dead) g.outpost = null; // guards go feral
     G.active.delete(e.outpost);
     UI.banner(t('OUTPOST CLEARED'), t('Loot dropped!'));
@@ -676,7 +676,7 @@ function update(dt) {
       const tier = tierOf(z), newTier = tierOf(G.lastZone).name !== tier.name;
       if (newTier) UI.banner(`<span style="color:${tier.color}">${tier.name.toUpperCase()}</span>`, t('Zone {z} · enemies grow stronger · rec. level {l}', { z, l: recLevel(z) }));
       else UI.banner(t('ZONE {z}', { z }), t('{b} · rec. level {l}', { b: t(BIOMES[World.biomeAt(p.x, p.y)].name), l: recLevel(z) }));
-      if (z > S.stats.best) toast(t('🏆 New record: Zone {z}', { z }), '#ffe082');
+      if (z > S.stats.best) { toast(t('🏆 New record: Zone {z}', { z }), '#ffe082'); Net.shard('zone', z); }
     }
     G.lastZone = z;
     if (z > run.maxZone) run.maxZone = z;

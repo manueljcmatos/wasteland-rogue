@@ -2,7 +2,7 @@
 // Telegram Mini App + backend connection: Stars purchases, server-side gems/vault chests, cloud save.
 // Without Telegram or a configured server the game runs fully offline (gems stay local, no purchases).
 const Net = {
-  on: false, lastPush: 0,
+  on: false, lastPush: 0, w: null,
   tg: (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) ? Telegram.WebApp : null,
   get url() { return (window.GAME_CONFIG || {}).serverUrl || ''; },
   get canBuy() { return this.on; },
@@ -43,6 +43,7 @@ const Net = {
     catch (e) { this.on = false; UI.toast(t('⚠️ Server offline: purchases unavailable'), '#ff8a80'); }
   },
   apply(w) {
+    this.w = w;
     G.save.gems = Math.max(0, w.gems);
     G.save.vaultChests = w.vaultChests;
     recalc();
@@ -72,6 +73,17 @@ const Net = {
     if (!this.on) { G.save.gems += amount; return; }
     this.call('POST', '/api/earn', { amount, reason }).then(r => this.apply(r.wallet)).catch(() => {});
   },
+
+  // ☢️ Shards: the server decides how many an event is worth (and caps them per day)
+  shard(event, value) {
+    if (!this.on) return;
+    this.call('POST', '/api/shards', { event, value }).then(r => {
+      this.apply(r.wallet);
+      if (r.credited > 0) UI.toast(t('+{n} ☢️ Shards', { n: r.credited }), '#b9f6ca');
+    }).catch(() => {});
+  },
+  async linkWallet(address) { const r = await this.call('POST', '/api/wallet', { address }); this.apply(r.wallet); return r; },
+  leaderboard() { return this.call('GET', '/api/leaderboard'); },
 
   pushSave(force = false) {
     if (!this.on) return;

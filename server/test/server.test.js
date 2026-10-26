@@ -119,3 +119,39 @@ test('admin refund removes gems once; non-admin ignored', async () => {
   await hook({ message: { chat: { id: 7 }, from: { id: 7 }, text: '/refund ch_1' } });
   assert.equal((await call('GET', '/api/me')).json.gems, before - 550);
 });
+
+test('shards: server-decided amounts, zone only on new bests, daily cap', async () => {
+  const carol = { id: 900, first_name: 'Carol' }, id = initData(carol);
+  let r = await call('POST', '/api/shards', { event: 'overlord' }, id);
+  assert.equal(r.json.credited, 25);
+  r = await call('POST', '/api/shards', { event: 'quest', amount: 9999 }, id); // client amount ignored
+  assert.equal(r.json.credited, 5);
+  r = await call('POST', '/api/shards', { event: 'zone', value: 99 }, id); // best 1 -> at most +3 zones
+  assert.equal(r.json.credited, 12);
+  r = await call('POST', '/api/shards', { event: 'zone', value: 3 }, id); // not a new best
+  assert.equal(r.json.credited, 0);
+  r = await call('POST', '/api/shards', { event: 'cheat' }, id);
+  assert.equal(r.status, 400);
+  for (let i = 0; i < 10; i++) r = await call('POST', '/api/shards', { event: 'overlord' }, id);
+  assert.equal(r.json.wallet.shardsToday, 120); // SHARDS_DAILY_CAP default
+  assert.equal(r.json.credited, 0);
+});
+
+test('wallet linking: format, uniqueness, unlink', async () => {
+  const dave = { id: 901, first_name: 'Dave' }, erin = { id: 902, first_name: 'Erin' };
+  const addr = '0:' + 'ab'.repeat(32);
+  assert.equal((await call('POST', '/api/wallet', { address: 'not-an-address' }, initData(dave))).status, 400);
+  let r = await call('POST', '/api/wallet', { address: addr }, initData(dave));
+  assert.equal(r.json.wallet.wallet, addr);
+  assert.equal((await call('POST', '/api/wallet', { address: addr }, initData(erin))).status, 409);
+  r = await call('POST', '/api/wallet', { address: null }, initData(dave));
+  assert.equal(r.json.wallet.wallet, null);
+  assert.equal((await call('POST', '/api/wallet', { address: 'EQ' + 'A'.repeat(46) }, initData(erin))).status, 200);
+});
+
+test('leaderboard ranks players by shards', async () => {
+  const r = await call('GET', '/api/leaderboard', null, initData({ id: 900, first_name: 'Carol' }));
+  assert.equal(r.json.top[0].name, 'Carol');
+  assert.equal(r.json.top[0].me, true);
+  assert.equal(r.json.myRank, 1);
+});

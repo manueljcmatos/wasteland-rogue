@@ -93,6 +93,7 @@ const Realm = {
     for (const g of G.enemies) if (g.outpost === 'overlord') g.outpost = null;
     const gems = U.randi(8, 15);
     Net.earn(gems, 'overlord');
+    Net.shard('overlord');
     UI.banner(t('👹 OVERLORD SLAIN'), t('+💎{g} · the realm will collapse soon', { g: gems }));
     for (let i = 0; i < 14; i++) addPickup('gold', e.x, e.y, Math.round(10 * e.lvl * G.st.goldMul));
     addPickup('scrap', e.x, e.y, Math.round(20 * e.lvl * G.st.scrapMul));
@@ -173,6 +174,7 @@ const Quests = {
     if (!q || !q.done) return;
     const r = q.reward;
     S.gold += r.gold; if (r.gems) Net.earn(r.gems, 'quest'); gainXp(r.xp);
+    Net.shard('quest');
     if (r.item && !invAdd(r.item)) S.stash.push(r.item);
     S.quests.splice(i, 1); this.ensure();
     toast(t('Reward: 🪙{g} ✨{x} XP', { g: U.fmt(r.gold), x: r.xp }) + (r.gems ? ` 💎${r.gems}` : '') + (r.item ? t(' + item') : ''), '#ffe082');
@@ -192,6 +194,7 @@ const NPCS = [
   { id: 'gems',  name: 'Mystic Zara',    x: 100,  y: -95,  col: '#6a1b9a', hat: '#e1bee7', icon: '💎' },
   { id: 'vault', name: 'Keeper Bram',    x: -115, y: 115,  col: '#5d4037', hat: '#90a4ae', icon: '🗝️' },
   { id: 'smith', name: 'Smith Hilda',    x: 115,  y: 115,  col: '#e65100', hat: '#37474f', icon: '🔨' },
+  { id: 'oracle', name: 'Oracle Nyx',    x: 0,    y: -125, col: '#00695c', hat: '#b9f6ca', icon: '☢️' },
 ];
 function nearNpc() {
   if (!G.atHome) return null;

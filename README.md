@@ -70,6 +70,7 @@ js/game.js      simulation loop and render loop
 js/realm.js     rotating realms, Overlord, quests, NPCs
 js/net.js       Telegram Mini App + server connection (Stars purchases, cloud save)
 js/i18n.js      English / Portuguese translations
+js/ton.js       TON Connect wallet linking (library loaded on demand)
 config.js       deployment settings (server URL, bot username)
 server/         backend (see server/README.md)
 js/art.js       all visuals: baked sprites, ground textures, buildings, effects
@@ -85,6 +86,7 @@ The game runs as a **Telegram Mini App**. Gems are sold with **Telegram Stars �
 
 - `server/`: zero-dependency Node.js backend: Telegram auth, Stars invoices and webhook, server-side gems and vault chests, cloud saves, `/paysupport` and admin `/refund`. Setup guide (Portuguese): [server/README.md](server/README.md).
 - `config.js`: set `serverUrl` and `botUsername` after deploying the server.
+- **☢️ Shards** (talk to Oracle Nyx at base): points earned from Overlords, quests, outposts and new best zones, tracked and capped by the server, with a leaderboard. Players link a **TON wallet** with TON Connect. Shards are planned to convert to a TON token (Jetton) later; they cannot be bought.
 - Outside Telegram the game still runs fully offline; gems can only be earned in play there.
 
 ## Languages

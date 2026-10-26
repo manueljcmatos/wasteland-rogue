@@ -6,6 +6,9 @@ Este servidor faz o seguinte:
 - **Vendas:** vende diamantes com **Telegram Stars ⭐**. É a forma obrigatória do Telegram para vender bens digitais em Mini Apps.
 - **Diamantes e baús:** guarda os diamantes e os baús de vault de cada jogador (editar o save no telemóvel não dá diamantes).
 - **Save na nuvem:** guarda um save por conta do Telegram.
+- **☢️ Shards:** pontos que vão ser convertidos no token TON (Fase 3). O servidor decide quanto vale cada evento e limita os ganhos por dia (`SHARDS_DAILY_CAP`, 120 por defeito).
+- **Carteira TON:** guarda o endereço que o jogador liga com o TON Connect (um endereço por conta).
+- **Classificação:** os 30 jogadores com mais Shards.
 - **Comandos do bot:** responde a `/start`, `/paysupport` e `/refund` (este último só para o admin).
 
 Não precisa de dependências: Node.js 22.13 ou mais recente, com SQLite incluído.
@@ -62,6 +65,27 @@ Faz commit. O GitHub Pages atualiza o jogo em cerca de 1 minuto.
 
 As Stars ganhas acumulam no saldo do bot e podem ser **levantadas em TON** através da plataforma **Fragment** (fragment.com).
 O Telegram aplica um período de espera e valores mínimos para levantamentos. Confirma as regras atuais na documentação oficial do Telegram para Stars antes de lançar.
+
+## ☢️ Shards e token (roteiro)
+
+| Fase | O quê | Estado |
+|---|---|---|
+| 1 | Shards ganhos a jogar, carteira TON ligada, classificação | ✅ pronto |
+| 2 | Criar o token (Jetton) na rede TON: primeiro testnet, depois mainnet | por fazer: decidir nome, símbolo e quantidade |
+| 3 | Converter Shards no token e enviá-lo para a carteira de cada jogador | por fazer: precisa de revisão legal e anti-batota |
+
+Quanto vale cada evento (definido no servidor, em `SHARD_EVENTS`):
+
+| Evento | Shards |
+|---|---|
+| Derrotar um Overlord | 25 |
+| Completar uma missão | 5 |
+| Limpar um posto | 3 |
+| Nova melhor zona (até 3 zonas por vez) | 4 por zona |
+
+A tabela `shard_log` regista cada ganho, para analisares padrões de batota antes da Fase 3.
+
+O ficheiro `tonconnect-manifest.json` na raiz do jogo identifica o jogo junto das carteiras (nome e ícone).
 
 ## Preços
 

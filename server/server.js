@@ -17,6 +17,7 @@ const CFG = {
   dbPath: process.env.DB_PATH || path.join(__dirname, 'data', 'game.db'),
   admins: (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
   earnCap: +process.env.DAILY_EARN_CAP || 60,
+  shardCap: +process.env.SHARDS_DAILY_CAP || 120,
   support: process.env.SUPPORT_CONTACT || 'Reply to this chat and we will help you.',
   tgApi: process.env.TG_API_BASE || 'https://api.telegram.org',
 };
@@ -33,6 +34,9 @@ const PACKS = {
 };
 // Gem sinks. The server deducts gems; the client applies the in-game reward.
 const MAX_CHESTS = 10;
+// ☢️ Shards: off-chain points that will later convert to the TON token (phase 3).
+// The client reports events; the server decides the amount and enforces a daily cap.
+const SHARD_EVENTS = { overlord: 25, quest: 5, outpost: 3, zone: 4 };
 const SPEND = {
   chest: u => (u.vault_chests >= MAX_CHESTS ? null : 50 * u.vault_chests),
   gold: () => 30,
@@ -53,7 +57,14 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS ledger (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, delta INTEGER NOT NULL, reason TEXT, created_at INTEGER);
   CREATE TABLE IF NOT EXISTS saves (user_id TEXT PRIMARY KEY, data TEXT, saved_at INTEGER);
+  CREATE TABLE IF NOT EXISTS shard_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, event TEXT, amount INTEGER, created_at INTEGER);
 `);
+// columns added after the first release
+const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+for (const [c, def] of [['shards', 'INTEGER NOT NULL DEFAULT 0'], ['shard_day', 'TEXT'], ['shards_today', 'INTEGER NOT NULL DEFAULT 0'], ['best_zone', 'INTEGER NOT NULL DEFAULT 1'], ['wallet', 'TEXT']])
+  if (!cols.includes(c)) db.exec(`ALTER TABLE users ADD COLUMN ${c} ${def}`);
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_wallet ON users(wallet) WHERE wallet IS NOT NULL');
 const q = {
   getUser: db.prepare('SELECT * FROM users WHERE id = ?'),
   addUser: db.prepare('INSERT OR IGNORE INTO users (id, name, created_at) VALUES (?, ?, ?)'),
@@ -64,6 +75,13 @@ const q = {
   addPayment: db.prepare('INSERT OR IGNORE INTO payments (charge_id, user_id, pack, stars, gems, created_at) VALUES (?, ?, ?, ?, ?, ?)'),
   getPayment: db.prepare('SELECT * FROM payments WHERE charge_id = ?'),
   refundPayment: db.prepare('UPDATE payments SET refunded = 1 WHERE charge_id = ?'),
+  addShards: db.prepare('UPDATE users SET shards = shards + ?, shard_day = ?, shards_today = ? WHERE id = ?'),
+  setBestZone: db.prepare('UPDATE users SET best_zone = ? WHERE id = ?'),
+  shardLog: db.prepare('INSERT INTO shard_log (user_id, event, amount, created_at) VALUES (?, ?, ?, ?)'),
+  setWallet: db.prepare('UPDATE users SET wallet = ? WHERE id = ?'),
+  walletOwner: db.prepare('SELECT id FROM users WHERE wallet = ?'),
+  top: db.prepare('SELECT id, name, shards FROM users WHERE shards > 0 ORDER BY shards DESC, id LIMIT 30'),
+  rankOf: db.prepare('SELECT COUNT(*) AS n FROM users WHERE shards > ?'),
   getSave: db.prepare('SELECT data, saved_at FROM saves WHERE user_id = ?'),
   putSave: db.prepare('INSERT INTO saves (user_id, data, saved_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at'),
 };
@@ -84,7 +102,9 @@ function ensureUser(tgUser) {
 const today = () => new Date().toISOString().slice(0, 10);
 function wallet(u) {
   const earned = u.earn_day === today() ? u.earned_today : 0;
-  return { gems: u.gems, vaultChests: u.vault_chests, earnedToday: earned, earnCap: CFG.earnCap };
+  const shardsToday = u.shard_day === today() ? u.shards_today : 0;
+  return { gems: u.gems, vaultChests: u.vault_chests, earnedToday: earned, earnCap: CFG.earnCap,
+    shards: u.shards, shardsToday, shardCap: CFG.shardCap, wallet: u.wallet };
 }
 
 // ---------- Telegram ----------
@@ -182,6 +202,39 @@ async function api(req, res, origin, route) {
     if (amount > 0) tx(() => { changeGems(u.id, amount, `earn:${String(body.reason || '').slice(0, 40)}`); q.setEarn.run(day, used + amount, u.id); });
     u = q.getUser.get(u.id);
     return send(res, 200, { credited: amount, wallet: wallet(u) }, origin);
+  }
+
+  if (route === 'POST /api/shards') {
+    const per = SHARD_EVENTS[body.event];
+    if (!per) return send(res, 400, { error: 'unknown event' }, origin);
+    let amount = per;
+    if (body.event === 'zone') {
+      // only new personal-best zones count, at most 3 zones per report
+      const z = Math.floor(+body.value || 0);
+      if (z <= u.best_zone) return send(res, 200, { credited: 0, wallet: wallet(u) }, origin);
+      amount = per * Math.min(3, z - u.best_zone);
+      q.setBestZone.run(Math.min(z, u.best_zone + 3), u.id);
+    }
+    const day = today(), used = u.shard_day === day ? u.shards_today : 0;
+    amount = Math.max(0, Math.min(amount, CFG.shardCap - used));
+    if (amount > 0) tx(() => { q.addShards.run(amount, day, used + amount, u.id); q.shardLog.run(u.id, body.event, amount, Date.now()); });
+    u = q.getUser.get(u.id);
+    return send(res, 200, { credited: amount, wallet: wallet(u) }, origin);
+  }
+
+  if (route === 'POST /api/wallet') {
+    // TON address from TON Connect: raw "0:<64 hex>" or user-friendly 48-char base64url. null unlinks.
+    const addr = body.address == null ? null : String(body.address).trim();
+    if (addr !== null && !/^-?\d:[0-9a-fA-F]{64}$/.test(addr) && !/^[A-Za-z0-9_-]{48}$/.test(addr)) return send(res, 400, { error: 'invalid TON address' }, origin);
+    if (addr) { const owner = q.walletOwner.get(addr); if (owner && owner.id !== u.id) return send(res, 409, { error: 'wallet already linked to another account' }, origin); }
+    q.setWallet.run(addr, u.id);
+    u = q.getUser.get(u.id);
+    return send(res, 200, { wallet: wallet(u) }, origin);
+  }
+
+  if (route === 'GET /api/leaderboard') {
+    const rows = q.top.all().map((r, i) => ({ rank: i + 1, name: (r.name || 'Player').slice(0, 24), shards: r.shards, me: r.id === u.id }));
+    return send(res, 200, { top: rows, myRank: u.shards > 0 ? q.rankOf.get(u.shards).n + 1 : null, myShards: u.shards }, origin);
   }
 
   if (route === 'GET /api/save') {
