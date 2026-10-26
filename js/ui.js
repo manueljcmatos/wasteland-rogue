@@ -431,7 +431,7 @@ const UI = {
     this.show('intro', this.introHtml(), false);
   },
   introHtml() {
-    return `<h2>☢️ Wasteland Rogue <button class="btn alt" data-act="lang">${I18N.lang === 'pt' ? '🇵🇹 PT' : '🇬🇧 EN'}</button></h2>
+    return `<h2>⚔️ Realms of Tyra <button class="btn alt" data-act="lang">${I18N.lang === 'pt' ? '🇵🇹 PT' : '🇬🇧 EN'}</button></h2>
       <p>${t('An open-world roguelike shooter. Pick a class, venture out from your base, survive, loot and level up.')}</p>
       <p>${this.helpText()}</p>
       <button class="btn big good" data-act="start">${t('Start')}</button>`;
@@ -567,7 +567,7 @@ const UI = {
 
   shardsHtml() {
     const w = Net.w, head = this.head(t('☢️ Oracle Nyx'));
-    const say = `<div class="npc-say">“${t('The wasteland remembers every deed. Gather Shards, survivor: one day they will become real treasure on the TON chain.')}”</div>`;
+    const say = `<div class="npc-say">“${t('Tyra remembers every deed. Gather Shards, survivor: one day they will become real treasure on the TON chain.')}”</div>`;
     if (!Net.on || !w) return `${head}${say}<div class="testmode">${t('☢️ Shards are earned when you play inside the Telegram app.')}</div>`;
     const short = a => a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-6) : a;
     const ev = [['👹', t('Slay an Overlord'), 25], ['📜', t('Complete a quest'), 5], ['🏴', t('Clear an outpost'), 3], ['🧭', t('Reach a new best zone'), 4]];
@@ -579,7 +579,7 @@ const UI = {
       <h3>👛 ${t('TON wallet')}</h3>
       ${w.wallet ? `<div class="row"><div class="ic">👛</div><div class="tx"><b>${short(w.wallet)}</b><div>${t('Your Shards will be converted to the token and sent here.')}</div></div><button class="btn alt" data-act="tondisconnect">${t('Unlink')}</button></div>`
         : `<p class="muted">${t('Link a TON wallet (Telegram Wallet, Tonkeeper…) so you can receive the token later.')}</p><button class="btn big good" data-act="tonconnect">👛 ${t('Connect TON wallet')}</button>`}
-      <div class="testmode">🪙 ${t('Token coming soon: Shards will convert to the Wasteland token on TON. The rate and date will be announced. Shards cannot be bought.')}</div>
+      <div class="testmode">🪙 ${t('Token coming soon: Shards will convert to the Tyra token on TON. The rate and date will be announced. Shards cannot be bought.')}</div>
       <h3>🏆 ${t('Leaderboard')}</h3>
       ${!b ? `<p class="muted">${t('Loading…')}</p>` : b.top.length ? b.top.map(r => `<div class="row" style="${r.me ? 'outline:2px solid #b9f6ca' : ''}"><div class="ic">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : '#' + r.rank}</div><div class="tx"><b>${r.name.replace(/</g, '&lt;')}</b></div><b style="color:#b9f6ca">${U.fmt(r.shards)} ☢️</b></div>`).join('')
         + (b.myRank && b.myRank > b.top.length ? `<p class="muted">${t('Your rank: #{n}', { n: b.myRank })}</p>` : '') : `<p class="muted">${t('No Shards yet. Be the first!')}</p>`}`;
@@ -648,7 +648,7 @@ const UI = {
       </div>
       <p>${t('Lost 🪙{g} ⚙️{s}', { g: U.fmt(s.lostGold), s: s.lostScrap })}${s.keptGold || s.keptScrap ? t(' · Vault saved 🪙{g} ⚙️{s}', { g: U.fmt(s.keptGold), s: s.keptScrap }) : ''}</p>
       ${s.perks.length ? `<div class="chips">${s.perks.map(id => { const p = PERKS.find(x => x.id === id); return `<span>${p.icon} ${t(p.name)}</span>`; }).join('')}</div>` : ''}
-      <p class="muted">${t('The wasteland shifts… a new world awaits. Your level, skills, equipped gear, potions, base and stash remain.')}</p>
+      <p class="muted">${t('The realms of Tyra shift… a new world awaits. Your level, skills, equipped gear, potions, base and stash remain.')}</p>
       <button class="btn big good" data-act="rise">${t('Rise again')}</button>`, false);
   },
 };

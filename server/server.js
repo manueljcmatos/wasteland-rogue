@@ -1,5 +1,5 @@
 'use strict';
-// Wasteland Rogue backend: Telegram Mini App auth, Telegram Stars payments for gems,
+// Realms of Tyra backend: Telegram Mini App auth, Telegram Stars payments for gems,
 // server-side gem ledger + vault chests, and cloud saves. Zero dependencies (Node >= 22.13).
 const http = require('node:http');
 const crypto = require('node:crypto');
@@ -175,7 +175,7 @@ async function api(req, res, origin, route) {
     if (!pack) return send(res, 400, { error: 'unknown pack' }, origin);
     const link = await tg('createInvoiceLink', {
       title: `${pack.gems} Gems`,
-      description: `${pack.gems} premium gems for Wasteland Rogue`,
+      description: `${pack.gems} premium gems for Realms of Tyra`,
       payload: JSON.stringify({ u: String(user.id), p: body.pack }),
       currency: 'XTR',
       prices: [{ label: `${pack.gems} Gems`, amount: pack.stars }],
@@ -283,7 +283,7 @@ async function onUpdate(up) {
   if (text.startsWith('/start')) {
     return tg('sendMessage', {
       chat_id: msg.chat.id,
-      text: '☢️ Wasteland Rogue: an open-world roguelike shooter. Tap Play to start!',
+      text: '⚔️ Realms of Tyra: an open-world roguelike shooter. Tap Play to start!',
       reply_markup: CFG.gameUrl ? { inline_keyboard: [[{ text: '▶️ Play', web_app: { url: CFG.gameUrl } }]] } : undefined,
     });
   }
@@ -330,7 +330,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(CFG.port, async () => {
-  console.log(`Wasteland Rogue server on :${CFG.port}`);
+  console.log(`Realms of Tyra server on :${CFG.port}`);
   if (CFG.publicUrl) {
     try {
       await tg('setWebhook', { url: `${CFG.publicUrl}/telegram/webhook`, secret_token: CFG.webhookSecret, allowed_updates: ['message', 'pre_checkout_query'] });

@@ -1,4 +1,4 @@
-# Servidor do Wasteland Rogue (Telegram + Stars)
+# Servidor do Realms of Tyra (Telegram + Stars)
 
 Este servidor faz o seguinte:
 
@@ -15,7 +15,7 @@ Não precisa de dependências: Node.js 22.13 ou mais recente, com SQLite incluí
 
 ## 1. Criar o bot
 
-1. No Telegram, abre o **@BotFather** e envia `/newbot`. Escolhe um nome e um username (ex.: `WastelandRogueBot`).
+1. No Telegram, abre o **@BotFather** e envia `/newbot`. Escolhe um nome e um username (ex.: `RealmsOfTyraBot`).
 2. Guarda o **token** que o BotFather te dá. É secreto: nunca o publiques no GitHub.
 3. Descobre o teu ID numérico (por exemplo com o **@userinfobot**). Vai para `ADMIN_IDS`.
 
@@ -30,7 +30,7 @@ Configura estas variáveis de ambiente (ver `.env.example`):
 |---|---|
 | `BOT_TOKEN` | token do BotFather |
 | `WEBHOOK_SECRET` | uma frase aleatória longa (ex.: `openssl rand -hex 32`) |
-| `PUBLIC_URL` | o endereço HTTPS do servidor, ex.: `https://wasteland-rogue.up.railway.app` |
+| `PUBLIC_URL` | o endereço HTTPS do servidor, ex.: `https://realms-of-tyra.up.railway.app` |
 | `GAME_URL` | `https://manueljcmatos.github.io/wasteland-rogue/` |
 | `ALLOWED_ORIGINS` | `https://manueljcmatos.github.io` |
 | `ADMIN_IDS` | o teu ID numérico do Telegram |
@@ -47,7 +47,7 @@ No repositório do jogo, edita o `config.js`:
 ```js
 window.GAME_CONFIG = {
   serverUrl: 'https://O-TEU-SERVIDOR',
-  botUsername: 'WastelandRogueBot',
+  botUsername: 'RealmsOfTyraBot',
   devFreeGems: false,
 };
 ```

@@ -1,4 +1,4 @@
-# ☢️ Wasteland Rogue
+# ⚔️ Realms of Tyra
 
 An open-world **roguelike twin-stick shooter** built for mobile browsers (works on desktop too).
 Pure HTML5 canvas + vanilla JavaScript: no build step, no dependencies.

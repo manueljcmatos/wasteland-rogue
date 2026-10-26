@@ -1,6 +1,6 @@
 {
-  "name": "Wasteland Rogue",
-  "short_name": "Wasteland",
+  "name": "Realms of Tyra",
+  "short_name": "Tyra",
   "description": "Open-world roguelike shooter for mobile",
   "start_url": "./index.html",
   "display": "fullscreen",
