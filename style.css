@@ -258,3 +258,15 @@ html, body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto,
 .perk { border: 2px solid var(--gold); }
 .cls.on { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(246,196,83,.25); }
 #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(10,8,20,0) 52%, rgba(10,8,20,.5) 100%); }
+
+/* world map: tap-to-travel */
+.mapwrap { position: relative; margin: 0 auto; }
+.mapwrap canvas { display: block; border-radius: 14px; border: 1px solid rgba(255,224,130,.35); box-shadow: 0 0 0 3px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.45); cursor: pointer; touch-action: manipulation; }
+.mapzoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.mapzoom .btn { width: 38px; height: 38px; padding: 0; margin: 0; font-size: 20px; line-height: 1; }
+.mapcard { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; padding: 10px 12px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(128,222,234,.14), rgba(128,222,234,.04)); border: 1px solid rgba(128,222,234,.35); min-height: 52px; }
+.mapcard .ic { font-size: 26px; width: 34px; text-align: center; }
+.mapcard .tx { flex: 1; min-width: 0; } .mapcard .tx b { font-size: 15px; } .mapcard .tx div { font-size: 12px; color: #aab; }
+.mapcard p { margin: 0; }
+.row.selrow { border-color: #80deea; box-shadow: 0 0 0 1px #80deea inset, 0 2px 8px rgba(0,0,0,.25); }

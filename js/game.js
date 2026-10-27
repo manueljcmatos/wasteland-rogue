@@ -930,35 +930,38 @@ function drawMinimap() {
 addEventListener('load', init);
 
 // full-screen world map (tap the minimap)
-function drawWorldMap(cv) {
+function drawWorldMap(cv, zoom = 1, sel = null) {
   const m = cv.getContext('2d'), S = cv.width, p = G.p, run = G.save.run, RB = G.save.realm.boss, radar = G.save.buildings.radar;
-  // zoom to what has been explored
+  // zoom to what has been explored; zoomed in, the map follows you
   let R = Math.max(1800, Math.hypot(p.x, p.y) + 900);
   for (const k of Explore.seen) { const [cx, cy] = k.split(',').map(Number); R = Math.max(R, Math.hypot((cx + .5) * FOG_CELL, (cy + .5) * FOG_CELL) + FOG_CELL); }
   for (const w of Explore.knownList()) R = Math.max(R, Math.hypot(w.x, w.y) + 700);
   if (run.portal) R = Math.max(R, Math.hypot(run.portal.x, run.portal.y) + 800);
   if (RB && !RB.killed) R = Math.max(R, Math.hypot(RB.x, RB.y) + 800);
+  R = Math.max(900, R / zoom);
+  const ox = zoom > 1 ? p.x : 0, oy = zoom > 1 ? p.y : 0;
   const sc = S / 2 / R, cells = 80, cs = S / cells;
   for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) {
-    const wx = ((i + .5) * cs - S / 2) / sc, wy = ((j + .5) * cs - S / 2) / sc;
+    const wx = ((i + .5) * cs - S / 2) / sc + ox, wy = ((j + .5) * cs - S / 2) / sc + oy;
     if (!Explore.seenAt(wx, wy)) { m.fillStyle = (i + j) % 2 ? '#0c0e12' : '#0f1217'; m.fillRect(i * cs, j * cs, cs + 1, cs + 1); continue; }
     const c = BIOMES[World.biomeAt(wx, wy)].c;
     m.fillStyle = `rgb(${c[0] * .75 | 0},${c[1] * .75 | 0},${c[2] * .75 | 0})`;
     m.fillRect(i * cs, j * cs, cs + 1, cs + 1);
   }
-  const toM = (x, y) => [S / 2 + x * sc, S / 2 + y * sc];
+  const toM = (x, y) => [S / 2 + (x - ox) * sc, S / 2 + (y - oy) * sc];
   // danger tier rings (every 5 zones)
   m.font = '700 11px system-ui'; m.textAlign = 'center'; m.textBaseline = 'middle';
   for (let z = 5; ; z += 5) {
     const r = (HOME_R + 850 * (z - 1)) * sc;
-    if (r > S * .72) break;
+    if (r > S * .72 + Math.hypot(ox, oy) * sc) break;
     const tier = tierOf(z);
     m.setLineDash([5, 5]); m.strokeStyle = tier.color; m.globalAlpha = .7; m.lineWidth = 1.5;
-    m.beginPath(); m.arc(S / 2, S / 2, r, 0, 6.283); m.stroke(); m.setLineDash([]);
-    m.globalAlpha = 1; m.fillStyle = tier.color; m.fillText(`${tier.name} (${z})`, S / 2, S / 2 - r + 9);
+    const [cx0, cy0] = toM(0, 0);
+    m.beginPath(); m.arc(cx0, cy0, r, 0, 6.283); m.stroke(); m.setLineDash([]);
+    m.globalAlpha = 1; m.fillStyle = tier.color; m.fillText(`${tier.name} (${z})`, cx0, cy0 - r + 9);
   }
   // outposts: all with radar, otherwise only the ones you found
-  for (const o of World.outpostsNear(0, 0, R)) {
+  for (const o of World.outpostsNear(ox, oy, R * 1.5)) {
     const cleared = run.cleared.includes(o.id);
     if (!radar && !cleared && !G.active.has(o.id)) continue;
     const [x, y] = toM(o.x, o.y);
@@ -967,8 +970,18 @@ function drawWorldMap(cv) {
   const mark = (x, y, txt, size = 16) => { m.font = `${size}px system-ui`; m.fillText(txt, x, y); };
   let [hx, hy] = toM(0, 0); mark(hx, hy, '🏠', 18);
   if (run.portal) { const [x, y] = toM(run.portal.x, run.portal.y); mark(x, y, '🌀'); }
+  // route to the picked destination
+  const dest = sel === 'home' ? { x: 0, y: 0 } : sel && Explore.knownList().find(w => w.id === sel);
+  if (dest) {
+    const [ax, ay] = toM(p.x, p.y), [bx, by] = toM(dest.x, dest.y), ph = (performance.now() / 60) % 16;
+    m.save(); m.setLineDash([8, 8]); m.lineDashOffset = -ph; m.strokeStyle = sel === 'home' ? '#ffe082' : '#80deea'; m.lineWidth = 3; m.globalAlpha = .9;
+    m.beginPath(); m.moveTo(ax, ay); m.lineTo(bx, by); m.stroke();
+    m.setLineDash([]); m.lineWidth = 2.5; m.beginPath(); m.arc(bx, by, 20 + Math.sin(performance.now() / 200) * 3, 0, 6.283); m.stroke();
+    m.restore();
+  }
   Explore.knownList().forEach((w, i) => {
     const [x, y] = toM(w.x, w.y);
+    if (w.id === sel) { m.fillStyle = 'rgba(128,222,234,.25)'; m.beginPath(); m.arc(x, y, 18, 0, 6.283); m.fill(); }
     m.fillStyle = '#80deea'; m.strokeStyle = '#003c43'; m.lineWidth = 3;
     m.beginPath(); m.moveTo(x, y - 11); m.lineTo(x + 8, y); m.lineTo(x, y + 11); m.lineTo(x - 8, y); m.closePath(); m.stroke(); m.fill();
     m.font = '800 11px system-ui'; m.fillStyle = '#003c43'; m.fillText(i + 1, x, y + 1);
@@ -979,6 +992,7 @@ function drawWorldMap(cv) {
   m.fillStyle = '#fff'; m.strokeStyle = '#000'; m.lineWidth = 2;
   m.beginPath(); m.moveTo(9, 0); m.lineTo(-6, -6); m.lineTo(-3, 0); m.lineTo(-6, 6); m.closePath(); m.stroke(); m.fill();
   m.restore();
+  return { toM };
 }
 
 // ---------- visiting other players' bases ----------

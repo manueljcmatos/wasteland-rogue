@@ -4,6 +4,8 @@
 const Net = {
   on: false, lastPush: 0, w: null,
   tg: (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) ? Telegram.WebApp : null,
+  // inside the Telegram app at all (even when opened as a plain link without initData)
+  inTg: !!(window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== 'unknown'),
   get url() { return (window.GAME_CONFIG || {}).serverUrl || ''; },
   get canBuy() { return this.on; },
 

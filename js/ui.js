@@ -42,6 +42,13 @@ const UI = {
     if (this.open === 'menu') $('saveCode').value = Save.exportCode(G.save);
     if (this.open === 'map') this.drawMap();
   },
+  // why an online feature is unavailable: outside Telegram, or the game server is not up yet
+  netNote(msg) {
+    if (Net.inTg && !Net.url) return t('🛠️ The online server of Tyra is not live yet. This unlocks as soon as it launches, your progress is safe.');
+    if (Net.inTg && !Net.tg) return t('Open the game with the Play button of @{b} to go online.', { b: (window.GAME_CONFIG || {}).botUsername || 'bot' });
+    if (Net.inTg) return t('⚠️ Could not reach the game server. Try again in a moment.');
+    return msg;
+  },
   head(title) { return `<h2><span>${title}</span><button class="x" data-act="close">✕</button></h2>`; },
   wallet() {
     const S = G.save, r = S.run;
@@ -162,6 +169,9 @@ const UI = {
         this.show('home', this.homeHtml()); return;
       case 'recall': startRecall(); return;
       case 'travel': Explore.startTeleport(d.id); return;
+      case 'mappick': this.mapSel = d.id; this.refresh(); return;
+      case 'mapzoom': this.mapZoom = U.clamp(this.mapZoom * (+d.z > 0 ? 2 : .5), 1, 8); this.refresh(); return;
+      case 'maphome': this.close(); startRecall(); return;
       case 'map': this.show('map', this.mapHtml()); this.drawMap(); return;
       case 'quests': this.show('quests', this.questsHtml()); return;
       case 'gemshop': this.show('gems', this.gemsHtml()); return;
@@ -185,7 +195,7 @@ const UI = {
       case 'gempack': {
         const pk = GEM_PACKS[+d.i]; if (!pk) return;
         if (Net.canBuy) { Net.buy(pk.id).catch(e => this.toast('⚠️ ' + e.message, '#ff8a80')); return; }
-        if (!(window.GAME_CONFIG || {}).devFreeGems) { this.toast(t('Gems can be bought in the Telegram app'), '#b388ff'); return; }
+        if (!(window.GAME_CONFIG || {}).devFreeGems) { this.toast(this.netNote(t('Gems can be bought in the Telegram app')), '#b388ff'); return; }
         S.gems += pk.gems; this.toast(t('💎 +{n} gems (dev mode, no charge)', { n: pk.gems }), '#b388ff');
         break;
       }
@@ -630,7 +640,7 @@ const UI = {
   },
   tradeHtml() {
     const head = this.head(t('⚖️ Trader Oto')), tab = this.tradeTab;
-    if (!Net.on) return `${head}<div class="testmode">${t('Trading with other players works inside the Telegram app.')}</div>`;
+    if (!Net.on) return `${head}<div class="testmode">${this.netNote(t('Trading with other players works inside the Telegram app.'))}</div>`;
     const m = this.market, tabs = [['bank', t('🏦 Bank')], ['market', t('🛒 Market')], ['offers', t('🤝 My trades')]];
     let body = `<p class="muted">${t('Loading…')}</p>`;
     if (m) {
@@ -657,7 +667,7 @@ const UI = {
   // ---------- gatekeeper: visit other players' bases ----------
   gateHtml() {
     const head = this.head(t('🌀 Gatekeeper Ilsa'));
-    if (!Net.on) return `${head}<div class="testmode">${t('Visiting other bases works inside the Telegram app.')}</div>`;
+    if (!Net.on) return `${head}<div class="testmode">${this.netNote(t('Visiting other bases works inside the Telegram app.'))}</div>`;
     const b = this.bases;
     return `${head}<div class="npc-say">“${t('My gates reach every base in Tyra. Whose home do you wish to see?')}”</div>
       ${!b ? `<p class="muted">${t('Loading…')}</p>` : b.length ? b.map(x => {
@@ -667,26 +677,60 @@ const UI = {
   },
 
   // ---------- world map ----------
+  mapSel: null, mapZoom: 1,
   mapHtml() {
-    const sz = Math.min(innerWidth - 56, innerHeight - 190, 560);
-    return `${this.head(t('🗺️ World map'))}
-      <canvas id="bigmap" width="${sz * 2}" height="${sz * 2}" style="width:${sz}px;height:${sz}px;display:block;margin:0 auto;border-radius:12px"></canvas>
-      <p class="muted">${t('🏠 base · 🌀 portal · 👹 Overlord · ■ outposts (all of them with the Radar) · dashed rings: danger tiers')} · ${t('◆ waypoints · dark: unexplored')}</p>
+    const sz = Math.min(innerWidth - 56, innerHeight - 250, 560);
+    return `${this.head(t('🗺️ Map of Tyra'))}
+      <div class="mapwrap" style="width:${sz}px">
+        <canvas id="bigmap" width="${sz * 2}" height="${sz * 2}" style="width:${sz}px;height:${sz}px"></canvas>
+        <div class="mapzoom"><button class="btn alt" data-act="mapzoom" data-z="1">＋</button><button class="btn alt" data-act="mapzoom" data-z="-1">－</button></div>
+      </div>
+      <div id="mapCard">${this.mapCardHtml()}</div>
+      <p class="muted">${t('Tap a ◆ waypoint or 🏠 on the map to travel.')} ${t('🏠 base · 🌀 portal · 👹 Overlord · ■ outposts (all of them with the Radar) · dashed rings: danger tiers')} · ${t('◆ waypoints · dark: unexplored')}</p>
       ${this.travelHtml()}`;
+  },
+  // the destination picked on the map
+  mapCardHtml() {
+    const S = G.save, money = S.gold + S.run.gold, sel = this.mapSel;
+    if (G.visit) return `<div class="mapcard"><p class="muted">${t('Return home before travelling.')}</p></div>`;
+    if (sel === 'home') {
+      const c = recallCost(), ok = !G.atHome && money >= c && !G.recallT;
+      return `<div class="mapcard"><div class="ic">🏠</div><div class="tx"><b>${t('Your base')}</b><div>${G.atHome ? t('You are here') : t('Leaves a 🌀 portal back to this spot')}</div></div>
+        <button class="btn ${ok ? 'good' : ''}" data-act="maphome" ${ok ? '' : 'disabled'}>🏠 🪙${U.fmt(c)}</button></div>`;
+    }
+    const w = sel && Explore.knownList().find(x => x.id === sel);
+    if (!w) return `<div class="mapcard"><p class="muted">${Explore.knownList().length ? t('Tap a ◆ waypoint on the map to see the trip.') : t('Explore the realm to find ancient waypoints. Walk close to one to wake it up.')}</p></div>`;
+    const c = Explore.cost(w), z = zoneOf(w.x, w.y), tier = tierOf(z), d = Math.round(Math.hypot(w.x - G.p.x, w.y - G.p.y) / 10), here = d < 30;
+    const ok = !here && money >= c && !G.tp;
+    return `<div class="mapcard"><div class="ic wpn">◆</div><div class="tx"><b>${w.name}</b><div><span style="color:${tier.color}">${t('Zone {z}', { z })} · ${t(tier.name)}</span> · ${here ? t('You are here') : t('{d}m away', { d: U.fmt(d) })}</div>
+      ${Explore.atWaypoint() && !here ? `<div class="up">${t('🌀 Waypoint network: -50%')}</div>` : ''}</div>
+      <button class="btn ${ok ? 'good' : ''}" data-act="travel" data-id="${w.id}" ${ok ? '' : 'disabled'}>🌀 🪙${U.fmt(c)}</button></div>`;
   },
   travelHtml() {
     const list = Explore.knownList();
     const head = `<h3>🌀 ${t('Waypoints')} <span class="muted">· ${t('{n} discovered in this realm', { n: list.length })}</span></h3>`;
-    if (G.visit) return head + `<p class="muted">${t('Return home before travelling.')}</p>`;
-    if (!list.length) return head + `<p class="muted">${t('Explore the realm to find ancient waypoints. Walk close to one to wake it up.')}</p>`;
+    if (G.visit || !list.length) return head;
     const S = G.save, money = S.gold + S.run.gold;
     return head + list.map((w, i) => {
       const c = Explore.cost(w), z = zoneOf(w.x, w.y), d = Math.round(Math.hypot(w.x - G.p.x, w.y - G.p.y) / 10);
-      return `<div class="row"><div class="ic wpn">${i + 1}</div><div class="tx"><b>${w.name}</b><div>${t('Zone {z} · {d}m away', { z, d: U.fmt(d) })}</div></div>
-        <button class="btn ${money >= c ? 'good' : ''}" data-act="travel" data-id="${w.id}" ${money >= c && !G.tp ? '' : 'disabled'}>🌀 🪙${U.fmt(c)}</button></div>`;
-    }).join('') + `<p class="muted">${t('Travelling takes {s}s and is interrupted if you get hit.', { s: TP_TIME })}</p>`;
+      return `<div class="row${this.mapSel === w.id ? ' selrow' : ''}" data-act="mappick" data-id="${w.id}"><div class="ic wpn">${i + 1}</div><div class="tx"><b>${w.name}</b><div>${t('Zone {z} · {d}m away', { z, d: U.fmt(d) })}</div></div>
+        <button class="btn ${money >= c ? 'good' : ''}" data-act="travel" data-id="${w.id}" ${money >= c && !G.tp && d >= 30 ? '' : 'disabled'}>🌀 🪙${U.fmt(c)}</button></div>`;
+    }).join('') + `<p class="muted">${t('Travelling takes {s}s and is interrupted if you get hit.', { s: TP_TIME })} ${t('Travelling from a waypoint costs half.')}</p>`;
   },
-  drawMap() { const cv = $('bigmap'); if (cv) drawWorldMap(cv); },
+  drawMap() {
+    const cv = $('bigmap'); if (!cv) return;
+    this.mapT = drawWorldMap(cv, this.mapZoom, this.mapSel);
+    cv.onclick = e => {
+      const r = cv.getBoundingClientRect(), k = cv.width / r.width, T = this.mapT;
+      const mx = (e.clientX - r.left) * k, my = (e.clientY - r.top) * k;
+      let best = null, bd = 34 * 34;
+      const test = (id, x, y) => { const [px, py] = T.toM(x, y), d = U.dist2(px, py, mx, my); if (d < bd) { bd = d; best = id; } };
+      test('home', 0, 0);
+      for (const w of Explore.knownList()) test(w.id, w.x, w.y);
+      this.mapSel = best; Sfx.play('pick');
+      this.refresh();
+    };
+  },
 
   // ---------- NPCs ----------
   npc(id) {
@@ -703,7 +747,7 @@ const UI = {
   shardsHtml() {
     const w = Net.w, head = this.head(t('☢️ Oracle Nyx'));
     const say = `<div class="npc-say">“${t('Tyra remembers every deed. Gather Shards, survivor: one day they will become real treasure on the TON chain.')}”</div>`;
-    if (!Net.on || !w) return `${head}${say}<div class="testmode">${t('☢️ Shards are earned when you play inside the Telegram app.')}</div>`;
+    if (!Net.on || !w) return `${head}${say}<div class="testmode">${this.netNote(t('☢️ Shards are earned when you play inside the Telegram app.'))}</div>`;
     const short = a => a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-6) : a;
     const ev = [['👹', t('Slay an Overlord'), 25], ['📜', t('Complete a quest'), 5], ['🏴', t('Clear an outpost'), 3], ['🧭', t('Reach a new best zone'), 4]];
     const b = this.board;
@@ -749,7 +793,7 @@ const UI = {
         <button class="btn" data-act="gempots" ${S.gems >= 20 ? '' : 'disabled'}>💎20</button></div>
       <h3>${t('Get gems')}</h3>
       ${Net.canBuy ? `<p class="muted">${t('Paid securely with Telegram Stars ⭐. Gems are also earned from quests and Overlords.')}</p>`
-        : `<div class="testmode">${t('💎 Gems are sold in the Telegram app with Telegram Stars ⭐')}${(window.GAME_CONFIG || {}).botUsername ? `: <a style="color:#ffe082" href="https://t.me/${window.GAME_CONFIG.botUsername}" target="_blank" rel="noopener">${t('open @{b}', { b: window.GAME_CONFIG.botUsername })}</a>` : ''}${t('. You can also earn gems from quests and Overlords.')}</div>`}
+        : `<div class="testmode">${Net.inTg ? this.netNote('') : t('💎 Gems are sold in the Telegram app with Telegram Stars ⭐')}${!Net.inTg && (window.GAME_CONFIG || {}).botUsername ? `: <a style="color:#ffe082" href="https://t.me/${window.GAME_CONFIG.botUsername}" target="_blank" rel="noopener">${t('open @{b}', { b: window.GAME_CONFIG.botUsername })}</a>` : ''}${Net.inTg ? '' : t('. You can also earn gems from quests and Overlords.')}</div>`}
       ${GEM_PACKS.map((pk, i) => `<div class="row"><div class="ic">💎</div><div class="tx"><b>${t('{n} gems', { n: pk.gems })}</b>${pk.bonus ? ` <span class="up">${pk.bonus}</span>` : ''}<div>${t('{n} ⭐ Telegram Stars', { n: pk.stars })}</div></div>
         <button class="btn ${Net.canBuy ? 'good' : ''}" data-act="gempack" data-i="${i}">⭐${pk.stars}</button></div>`).join('')}`;
   },

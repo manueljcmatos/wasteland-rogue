@@ -57,9 +57,11 @@ const Explore = {
   knownList() {
     return G.save.realm.wps.map(id => { const [cx, cy] = id.split(',').map(Number); return this.wpOfChunk(cx, cy); }).filter(Boolean);
   },
+  // standing at a known waypoint: travel through the network costs half
+  atWaypoint() { return this.wpsNear(G.p.x, G.p.y, WP_WAKE_R + 60).some(w => this.known(w.id)); },
   cost(w) {
     const z = zoneOf(w.x, w.y), d = Math.hypot(w.x - G.p.x, w.y - G.p.y);
-    return Math.round(10 + 12 * z * (1 + .12 * z) + d / 80);
+    return Math.round((10 + 12 * z * (1 + .12 * z) + d / 80) * (this.atWaypoint() ? .5 : 1));
   },
 
   update(dt) {
@@ -85,7 +87,7 @@ const Explore = {
 
   startTeleport(id) {
     const w = this.knownList().find(x => x.id === id), S = G.save;
-    if (!w || G.visit || G.tp) return;
+    if (!w || G.visit || G.tp || Math.hypot(w.x - G.p.x, w.y - G.p.y) < 300) return;
     const c = this.cost(w);
     if (S.run.gold + S.gold < c) { toast(t('Need 🪙{c} to travel', { c: U.fmt(c) }), '#ff8a80'); return; }
     G.tp = { t: TP_TIME, w, c };
@@ -94,12 +96,13 @@ const Explore = {
   },
   cancel() { if (G.tp) { G.tp = null; toast(t('Travel interrupted!'), '#ff8a80'); } },
   arrive() {
-    const { w } = G.tp, S = G.save, run = S.run, c = this.cost(w);
+    const { w, c } = G.tp, S = G.save, run = S.run;
     G.tp = null;
     if (run.gold + S.gold < c) { toast(t('Not enough gold'), '#ff8a80'); return; }
     const fromRun = Math.min(run.gold, c); run.gold -= fromRun; S.gold -= c - fromRun;
     burst(G.p.x, G.p.y, '#80deea', 26, 220);
-    G.p.x = w.x; G.p.y = w.y + 60; G.ebullets = [];
+    G.p.x = w.x; G.p.y = w.y + 60; G.ebullets = []; G.p.inv = 2; // a moment to get your bearings
+    UI.mapSel = null;
     burst(G.p.x, G.p.y, '#80deea', 26, 220);
     UI.banner(`🌀 ${w.name}`, t('Zone {z}', { z: zoneOf(w.x, w.y) }));
     Sfx.play('level');
